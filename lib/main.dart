@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                                   );
                                 });
                           } else {
-                            Scaffold.of(context).showSnackBar(new SnackBar(
+                            ScaffoldMessenger.of(context).showSnackBar(new SnackBar(
                               content: new Text(
                                   'Try again in 15 minutes.'), // rate limited to 15 requests
                             ));
@@ -132,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                     minWidth: 150.0,
                     onPressed: () =>
                         _handleURLButtonPress(
-                            "https://www.propylaia.org:5900/MemberLogin/login.jsp"),
+                            Uri.parse("https://www.propylaia.org:443/wordpress/")),
                     child: new Text('Teaching Payments'),
                     color: Colors.red[400],
                   ),
@@ -142,8 +142,7 @@ class _LoginPageState extends State<LoginPage> {
                   new MaterialButton(
                     minWidth: 150.0,
                     onPressed: () =>
-                        _handleURLButtonPress(
-                            "https://s4898.americommerce.com"),
+                        _handleURLButtonPress(Uri.https("s4898.americommerce.com")),
                     child: new Text('Event Payments'),
                     color: Colors.red[400],
                   ),
@@ -158,13 +157,23 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<List<int>> _getVidList() async {
-    final good = List<int>();
+    final List<int> good = [];
     final client = http.Client();
-    if (good.isEmpty)
+    var weekday = DateTime.now().weekday;
+    if (weekday > 3)
       try {
-        for (int i = 1; i <= DateTime.now().weekday * 2; i++) {
+        for (int i = 1; i <= weekday * 2; i++) {
           await client.get(_getUrl(i)).then(
               (response) => {if (response.statusCode != 404) good.add(i)});
+        }
+      } finally {
+        client.close();
+      }
+    else // show last week's meetings on Mon-Wed as there are none on those days
+      try {
+        for (int i = 15; i > 0; i--) {
+          await client.get(_getUrl(i)).then(
+                  (response) => {if (response.statusCode != 404) good.add(i)});
         }
       } finally {
         client.close();
@@ -207,23 +216,23 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  String _getUrl(int i) {
-    return "https://5e874c546d6cf.streamlock.net:443/live/event$i" +
-        (_audioOnly?"_aac":"") + "/playlist.m3u8?DVR";
+  Uri _getUrl(int i) {
+    return Uri.parse("https://5e874c546d6cf.streamlock.net:443/live/event$i" +
+        (_audioOnly?"_aac":"") + "/playlist.m3u8?DVR");
   }
 
   bool _audioOnly = false;
 
-  void _goToFullVideos(String url) async {
+  void _goToFullVideos(Uri url) async {
     if (Platform.isAndroid) {
       const MethodChannel _channel = MethodChannel("samples.flutter.dev/gabor");
-      await _channel.invokeMethod<void>('openFullVideo', {"url": url, "audioOnly": _audioOnly});
+      await _channel.invokeMethod<void>('openFullVideo', {"url": url.toString(), "audioOnly": _audioOnly});
     }
   }
 
-  void _handleURLButtonPress(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
+  void _handleURLButtonPress(Uri url) async {
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
     } else {
       throw 'Could not launch $url';
     }

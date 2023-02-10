@@ -73,7 +73,7 @@ class Tweet {
             (retweetStatus["entities"]) as Map<String, dynamic>;
         var originalMedia = (originalEntities["media"]) as List<dynamic>;
 
-        List<String> originalMedias = List();
+        List<String> originalMedias = [];
 
         if (originalMedia != null && originalMedia.isNotEmpty)
           originalMedia
@@ -100,7 +100,7 @@ class Tweet {
             (quotedStatus["entities"]) as Map<String, dynamic>;
         var originalMedia = (originalEntities["media"]) as List<dynamic>;
 
-        List<String> originalMedias = List();
+        List<String> originalMedias = [];
 
         if (originalMedia != null && originalMedia.isNotEmpty)
           originalMedia
@@ -122,7 +122,7 @@ class Tweet {
       print(e);
     }
 
-    List<String> medias = List();
+    List<String> medias = [];
 
     if (media != null && media.isNotEmpty)
       media.forEach((item) => medias.add(item["media_url_https"]));

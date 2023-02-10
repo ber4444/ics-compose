@@ -184,7 +184,7 @@ class TwitterClient {
     ]);
 
     if (response.statusCode == 200) {
-      var timeline = List<Tweet>();
+      List<Tweet> timeline = [];
       json.decode(response.body).forEach((map) => timeline.add(new Tweet(map)));
       return timeline;
     } else {
@@ -202,7 +202,7 @@ class TwitterClient {
     ]);
 
     if (response.statusCode == 200) {
-      List<Tweet> timeline = List();
+      List<Tweet> timeline = [];
       json.decode(response.body).forEach((data) => timeline.add(Tweet(data)));
       return timeline;
     } else
@@ -217,7 +217,7 @@ class TwitterClient {
     ]);
 
     if (response.statusCode == 200) {
-      List<Tweet> timeline = List();
+      List<Tweet> timeline = [];
       json.decode(response.body).forEach((data) => timeline.add(Tweet(data)));
       return timeline;
     } else
@@ -273,7 +273,7 @@ class TwitterClient {
     final response = await _twitterGet(base, params);
 
     if (response.statusCode == 200) {
-      List<Tweet> search = List();
+      List<Tweet> search = [];
       final statuses = json.decode(response.body);
       statuses["statuses"].forEach((data) => search.add(Tweet(data)));
       return search;
@@ -290,7 +290,7 @@ class TwitterClient {
     ]);
 
     if (response.statusCode == 200) {
-      List<User> search = List();
+      List<User> search = [];
       json.decode(response.body).forEach((data) => search.add(User(data)));
       return search;
     } else {
@@ -308,7 +308,7 @@ class TwitterClient {
     ]);
 
     if (response.statusCode == 200) {
-      List<Tweet> search = List();
+      List<Tweet> search = [];
       final statuses = json.decode(response.body);
       statuses["statuses"].forEach((data) => search.add(Tweet(data)));
       return search;

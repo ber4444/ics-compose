@@ -2,26 +2,21 @@ package np.com.sarbagyastha.youtube_player_flutter_example
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.ResolveInfo
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
 import com.twitter.sdk.android.core.*
 import com.twitter.sdk.android.core.identity.TwitterAuthClient
-import io.flutter.app.FlutterActivity
-import io.flutter.plugin.common.MethodCall
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.PluginRegistry.Registrar
+import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugins.GeneratedPluginRegistrant
 import java.util.*
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        GeneratedPluginRegistrant.registerWith(this)
-
-        MethodChannel(flutterView, CHANNEL).setMethodCallHandler { call, result ->
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        GeneratedPluginRegistrant.registerWith(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "openFullVideo" -> openMxplayer(call.argument("url"), call.argument("audioOnly"))
                 METHOD_GET_CURRENT_SESSION -> getCurrentSession(result, call)
@@ -29,11 +24,6 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
-    }
-
-    private fun canResolveIntent(intent: Intent): Boolean {
-        val resolveInfo: List<ResolveInfo>? = packageManager.queryIntentActivities(intent, 0)
-        return resolveInfo != null && resolveInfo.isNotEmpty()
     }
 
     private fun openMxplayer(url: String?, audioOnly: Boolean?) {
@@ -46,12 +36,12 @@ class MainActivity : FlutterActivity() {
         intent.setDataAndTypeAndNormalize(uri, "video/*")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         intent.putExtra("decode_mode", 2.toByte())
-        intent.putExtra("orientation", 0.toInt())
-        if (audioOnly ?: false) intent.putExtra("video", false)
+        intent.putExtra("orientation", 0)
+        if (audioOnly == true) intent.putExtra("video", false)
         intent.putExtra("sticky", true)
         intent.putExtra("secure_uri", true)
-        intent.putExtra("video_zoom", 2.toInt())
-        if (Build.VERSION.SDK_INT >= 19) intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        intent.putExtra("video_zoom", 2)
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         try {
             this.startActivity(intent)
         } catch (e: ActivityNotFoundException) {
@@ -117,7 +107,7 @@ class MainActivity : FlutterActivity() {
         return authClientInstance
     }
 
-    private fun configureClient(consumerKey: String?, consumerSecret: String?): TwitterAuthClient? {
+    private fun configureClient(consumerKey: String?, consumerSecret: String?): TwitterAuthClient {
         val authConfig = TwitterAuthConfig(consumerKey, consumerSecret)
         val config = TwitterConfig.Builder(this)
                 .twitterAuthConfig(authConfig)
