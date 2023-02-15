@@ -159,44 +159,18 @@ class _LoginPageState extends State<LoginPage> {
   Future<List<int>> _getVidList() async {
     final List<int> good = [];
     final client = http.Client();
-    var weekday = DateTime.now().weekday;
-    if (weekday > 3)
-      try {
-        for (int i = 1; i <= weekday * 2; i++) {
-          await client.get(_getUrl(i)).then(
-              (response) => {if (response.statusCode != 404) good.add(i)});
-        }
-      } finally {
-        client.close();
+    try {
+      for (int i = 20; i > 0; i--) {
+        await client.get(_getUrl(i)).then(
+                (response) => {if (response.statusCode != 404) good.add(i)});
       }
-    else // show last week's meetings on Mon-Wed as there are none on those days
-      try {
-        for (int i = 15; i > 0; i--) {
-          await client.get(_getUrl(i)).then(
-                  (response) => {if (response.statusCode != 404) good.add(i)});
-        }
-      } finally {
-        client.close();
-      }
+    } finally {
+      client.close();
+    }
+
     return good;
   }
 
-  var events = [
-    "Monday morning",
-    "Monday evening",
-    "Tuesday morning",
-    "Tuesday evening",
-    "Wednesday morning",
-    "Wednesday evening",
-    "Thursday morning",
-    "Thursday evening",
-    "Friday morning",
-    "Friday evening",
-    "Saturday morning",
-    "Saturday evening",
-    "Sunday morning",
-    "Sunday evening"
-  ];
   Widget _setupAlertDialoadContainer(List<int> list) {
     return Container(
       width: 300,
@@ -205,7 +179,7 @@ class _LoginPageState extends State<LoginPage> {
         itemCount: list.length,
         itemBuilder: (BuildContext context, int index) {
           return ListTile(
-            title: Text(events[list[index] - 1]),
+            title: Text("event " + list[index].toString()),
             onTap: () {
               var url = _getUrl(list[index]);
               _goToFullVideos(url);
