@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'twitter_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
@@ -37,8 +36,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TwitterClient _client = new TwitterClient();
-
+  bool _enable = false;
   @override
   Widget build(BuildContext context) {
     return new MaterialApp(
@@ -69,49 +67,37 @@ class _LoginPageState extends State<LoginPage> {
                       }
                   ),
                   new MaterialButton(
-                    //padding: new EdgeInsets.all(16.0),
                     minWidth: 150.0,
-                    onPressed: () =>
-                        _client
-                            .getMembership("LivingPresence")
-                            .then((membership) {
-                          if (membership) {
-                            showDialog(
-                                context: context,
-                                builder: (BuildContext context) {
-                                  return AlertDialog(
-                                    title: Text('Videos List'),
-                                    content: new FutureBuilder<List<int>>(
-                                      future: _getVidList(),
-                                      builder: (BuildContext context,
-                                          AsyncSnapshot<List<int>> snapshot) {
-                                        if (snapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return Center(
-                                              child: CircularProgressIndicator(
-                                                  value: null));
-                                        } else {
-                                          if (snapshot.hasError)
-                                            return Center(
-                                                child: Text(
-                                                    'Error: ${snapshot
-                                                        .error}'));
-                                          else
-                                            return Center(
-                                                child: _setupAlertDialoadContainer(
-                                                    snapshot.data));
-                                        }
-                                      },
-                                    ),
-                                  );
-                                });
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(new SnackBar(
-                              content: new Text(
-                                  'Try again in 15 minutes.'), // rate limited to 15 requests
-                            ));
-                          }
-                        }).catchError((e) => print(e)),
+                    onPressed: _enable ? () =>
+                        showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: Text('Videos List'),
+                                content: new FutureBuilder<List<int>>(
+                                  future: _getVidList(),
+                                  builder: (BuildContext context,
+                                      AsyncSnapshot<List<int>> snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Center(
+                                          child: CircularProgressIndicator(
+                                              value: null));
+                                    } else {
+                                      if (snapshot.hasError)
+                                        return Center(
+                                            child: Text(
+                                                'Error: ${snapshot
+                                                    .error}'));
+                                      else
+                                        return Center(
+                                            child: _setupAlertDialoadContainer(
+                                                snapshot.data));
+                                    }
+                                  },
+                                ),
+                              );
+                            }).catchError((e) => print(e)) : null,
                     child: new Text('Live Events'),
                     color: Colors.red[400],
                   ),
@@ -119,12 +105,29 @@ class _LoginPageState extends State<LoginPage> {
                     padding: const EdgeInsets.all(5.0),
                   ),
                   Text(
-                    'Videos play at 420p.\nFOF doesn\'t do HD quality.',
+                    'Enter the password\nfrom the Video Test page\non Inner Circle Squared.',
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        backgroundColor: Color.fromRGBO(255, 255, 255, 0.4)),
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        backgroundColor: Color.fromRGBO(255, 255, 255, 0.6)),
                   ),
+                  SizedBox(
+                    width: 100.0,
+                    child: TextField(
+                      style: TextStyle(
+                        color: Colors.red),
+                      cursorColor: Colors.red,
+                      decoration: InputDecoration(
+                          filled: true,
+                          border: InputBorder.none,
+                          fillColor: Color.fromRGBO(255, 255, 255, 0.6)),
+                      autofocus: true,
+                      onChanged: (value) {
+                        _enable = (value == "...............");
+                        setState(() { });
+                      })),
                   new Padding(
                     padding: const EdgeInsets.all(5.0),
                   ),
