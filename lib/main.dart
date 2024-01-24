@@ -84,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
                                           child: CircularProgressIndicator(
                                               value: null));
                                     } else {
-                                      if (snapshot.hasError)
+                                      if (snapshot.hasError || snapshot.data==null)
                                         return Center(
                                             child: Text(
                                                 'Error: ${snapshot
@@ -92,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
                                       else
                                         return Center(
                                             child: _setupAlertDialoadContainer(
-                                                snapshot.data));
+                                                snapshot.data!));
                                     }
                                   },
                                 ),
@@ -125,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
                           fillColor: Color.fromRGBO(255, 255, 255, 0.6)),
                       autofocus: true,
                       onChanged: (value) {
-                        _enable = (value == "...............");
+                        _enable = (value == "be2BE");
                         setState(() { });
                       })),
                   new Padding(

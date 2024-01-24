@@ -38,7 +38,7 @@ def keystoreProperties = new Properties()
 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 android {
-    compileSdkVersion 33
+    compileSdk 34
 
     packagingOptions {
         jniLibs {
@@ -48,13 +48,19 @@ android {
     defaultConfig {
         applicationId "com.livingpresence.inner.circle.squared"
         minSdkVersion 21 // proper SSL support is not there in lower versions for twitter
-        targetSdkVersion 33
+        targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
     }
-
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
     signingConfigs {
         config {
             keyAlias keystoreProperties['keyAlias']
@@ -74,9 +80,6 @@ android {
         }
     }
 
-    compileOptions {
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
     namespace 'np.com.sarbagyastha.youtube_player_flutter_example'
     lint {
         disable 'InvalidPackage'
@@ -88,7 +91,7 @@ flutter {
 }
 
 dependencies {
-    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.7.20'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
 }

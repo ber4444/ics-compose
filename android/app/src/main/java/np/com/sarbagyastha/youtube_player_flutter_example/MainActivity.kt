@@ -45,7 +45,7 @@ class MainActivity : FlutterActivity() {
                 intent.setPackage(packageName)
                 this.startActivity(intent)
             } catch (e: ActivityNotFoundException) {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=pub:MX+Media+%28formerly+J2+Interactive%29&hl=en_US&gl=US")))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=MX+player")))
             }
         }
     }
