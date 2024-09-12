@@ -38,7 +38,7 @@ def keystoreProperties = new Properties()
 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 android {
-    compileSdk 34
+    compileSdk 35
 
     packagingOptions {
         jniLibs {
@@ -48,7 +48,7 @@ android {
     defaultConfig {
         applicationId "com.livingpresence.inner.circle.squared"
         minSdkVersion 21 // proper SSL support is not there in lower versions for twitter
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

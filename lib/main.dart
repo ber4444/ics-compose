@@ -194,7 +194,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Uri _getUrl(int i) {
-    return Uri.parse("https://5e874c546d6cf.streamlock.net:443/live/event$i" +
+    return Uri.parse("https://65e54f30ec73c.streamlock.net:443/live/event$i" +
         (_audioOnly?"_aac":"") + "/playlist.m3u8?DVR");
   }
 
