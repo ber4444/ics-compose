@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -28,6 +29,12 @@ import io.ktor.client.statement.*
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "InnerCircleSquared"
+        // Reusable HTTP client for efficiency
+        private val httpClient = HttpClient(Android)
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -35,6 +42,12 @@ class MainActivity : ComponentActivity() {
                 LoginScreen()
             }
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clean up HTTP client when activity is destroyed
+        httpClient.close()
     }
 }
 
@@ -58,6 +71,8 @@ fun LoginScreen() {
     var showDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     
+    // NOTE: Password stored in plain text for feature parity with original Flutter app.
+    // In production, consider implementing proper server-side authentication.
     val isEnabled = password == "be2BE"
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -264,21 +279,22 @@ fun VideosDialog(audioOnly: Boolean, onDismiss: () -> Unit) {
 
 suspend fun getVideoList(): List<Int> {
     val good = mutableListOf<Int>()
-    val client = HttpClient(Android)
     
     try {
         for (i in 20 downTo 1) {
             try {
-                val response: HttpResponse = client.get(getUrl(i, false))
+                val response: HttpResponse = MainActivity.httpClient.get(getUrl(i, false))
                 if (response.status.value != 404) {
                     good.add(i)
                 }
             } catch (e: Exception) {
-                // Ignore errors for individual requests
+                // Log errors for debugging, but continue checking other events
+                Log.w(MainActivity.TAG, "Error checking event $i: ${e.message}")
             }
         }
-    } finally {
-        client.close()
+    } catch (e: Exception) {
+        Log.e(MainActivity.TAG, "Error fetching video list", e)
+        throw e
     }
     
     return good
