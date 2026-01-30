@@ -1,7 +1,9 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.androidApplication)
+    alias(libs.plugins.kotlinAndroid)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -10,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.livingpresence.inner.circle.squared"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 36
         versionCode = 7009
         versionName = "8.0.7"
@@ -37,25 +39,28 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
-    implementation("androidx.activity:activity-compose:1.10.0")
-    implementation("androidx.compose.ui:ui:1.7.6")
-    implementation("androidx.compose.ui:ui-tooling-preview:1.7.6")
-    implementation("androidx.compose.foundation:foundation:1.7.6")
-    implementation("androidx.compose.material3:material3:1.4.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
-    implementation("io.ktor:ktor-client-core:3.0.3")
-    implementation("io.ktor:ktor-client-android:3.0.3")
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.splash.screen.support)
     
-    debugImplementation("androidx.compose.ui:ui-tooling:1.7.6")
+    debugImplementation(libs.compose.ui.tooling)
 }

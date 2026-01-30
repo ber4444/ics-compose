@@ -1,11 +1,11 @@
 [versions]
-agp = "8.2.2"
-kotlin = "1.9.22"
-compose = "1.7.6"
+agp = "8.13.2"
+kotlin = "2.3.0"
+compose = "1.10.2"
 compose-material3 = "1.4.0"
-androidx-activityCompose = "1.10.0"
-kotlinx-coroutines = "1.10.1"
-ktor = "3.0.3"
+androidx-activityCompose = "1.12.3"
+kotlinx-coroutines = "1.10.2"
+ktor = "3.4.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -19,6 +19,7 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
+splash-screen-support = "androidx.core:core-splashscreen:1.0.0-beta02"
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.livingpresence.inner.circle.squared.MainActivity.Companion.httpClient
 import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.request.*
@@ -30,13 +33,18 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     companion object {
-        private const val TAG = "InnerCircleSquared"
+        const val TAG = "InnerCircleSquared"
         // Reusable HTTP client for efficiency
-        private val httpClient = HttpClient(Android)
+        val httpClient = HttpClient(Android)
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Enable edge-to-edge display to remove title bar
+        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         setContent {
             InnerCircleSquaredTheme {
                 LoginScreen()
@@ -134,19 +142,6 @@ fun LoginScreen() {
 
             Spacer(modifier = Modifier.height(5.dp))
 
-            // Password instruction
-            Text(
-                text = "Enter the password\nfrom the Video Test page\non Inner Circle Squared.",
-                textAlign = TextAlign.Center,
-                color = Color.Red,
-                modifier = Modifier
-                    .background(Color(0x99FFFFFF))
-                    .padding(8.dp),
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Spacer(modifier = Modifier.height(5.dp))
-
             // Password field
             TextField(
                 value = password,
@@ -176,7 +171,6 @@ fun LoginScreen() {
                         "https://www.propylaia.org:443/wordpress/"
                     )
                 },
-                modifier = Modifier.width(150.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
             ) {
                 Text("Teaching Payments")
@@ -192,7 +186,6 @@ fun LoginScreen() {
                         "https://s4898.americommerce.com"
                     )
                 },
-                modifier = Modifier.width(150.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
             ) {
                 Text("Event Payments")
@@ -283,7 +276,7 @@ suspend fun getVideoList(): List<Int> {
     try {
         for (i in 20 downTo 1) {
             try {
-                val response: HttpResponse = MainActivity.httpClient.get(getUrl(i, false))
+                val response: HttpResponse = httpClient.get(getUrl(i, false))
                 if (response.status.value != 404) {
                     good.add(i)
                 }
