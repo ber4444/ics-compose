@@ -28,6 +28,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -38,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -58,51 +62,64 @@ private data class PlayerRoute(
 @Composable
 fun App() {
     InnerCircleSquaredTheme {
-        val mainViewModel = rememberMainViewModel()
-        val uiState by mainViewModel.uiState.collectAsState()
-        val backStack = remember { mutableStateListOf<AppRoute>(LoginRoute) }
-        val popBackStack = {
-            if (backStack.size > 1) {
-                backStack.removeLast()
+        val viewModelStoreOwner = remember {
+            object : ViewModelStoreOwner {
+                override val viewModelStore = ViewModelStore()
+            }
+        }
+        DisposableEffect(viewModelStoreOwner) {
+            onDispose {
+                viewModelStoreOwner.viewModelStore.clear()
             }
         }
 
-        NavDisplay(
-            backStack = backStack,
-            modifier = Modifier.fillMaxSize(),
-            onBack = popBackStack,
-            entryProvider = { route ->
-                when (route) {
-                    LoginRoute -> NavEntry(route) {
-                        LoginScreen(
-                            uiState = uiState,
-                            onPasswordChange = mainViewModel::onPasswordChanged,
-                            onAudioOnlyChange = mainViewModel::onAudioOnlyChanged,
-                            onShowVideosDialog = mainViewModel::showVideosDialog,
-                            onDismissVideosDialog = mainViewModel::dismissVideosDialog,
-                            onPlayVideo = { eventNumber ->
-                                val playbackRequest = mainViewModel.createPlayback(eventNumber)
-                                backStack.add(
-                                    PlayerRoute(
-                                        url = playbackRequest.url,
-                                        audioOnly = playbackRequest.audioOnly,
-                                    )
-                                )
-                            },
-                            onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
-                        )
-                    }
-
-                    is PlayerRoute -> NavEntry(route) {
-                        PlatformPlayerScreen(
-                            url = route.url,
-                            audioOnly = route.audioOnly,
-                            onClose = popBackStack,
-                        )
-                    }
+        CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
+            val mainViewModel = rememberMainViewModel()
+            val uiState by mainViewModel.uiState.collectAsState()
+            val backStack = remember { mutableStateListOf<AppRoute>(LoginRoute) }
+            val popBackStack = {
+                if (backStack.size > 1) {
+                    backStack.removeLast()
                 }
-            },
-        )
+            }
+
+            NavDisplay(
+                backStack = backStack,
+                modifier = Modifier.fillMaxSize(),
+                onBack = popBackStack,
+                entryProvider = { route ->
+                    when (route) {
+                        LoginRoute -> NavEntry(route) {
+                            LoginScreen(
+                                uiState = uiState,
+                                onPasswordChange = mainViewModel::onPasswordChanged,
+                                onAudioOnlyChange = mainViewModel::onAudioOnlyChanged,
+                                onShowVideosDialog = mainViewModel::showVideosDialog,
+                                onDismissVideosDialog = mainViewModel::dismissVideosDialog,
+                                onPlayVideo = { eventNumber ->
+                                    val playbackRequest = mainViewModel.createPlayback(eventNumber)
+                                    backStack.add(
+                                        PlayerRoute(
+                                            url = playbackRequest.url,
+                                            audioOnly = playbackRequest.audioOnly,
+                                        )
+                                    )
+                                },
+                                onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
+                            )
+                        }
+
+                        is PlayerRoute -> NavEntry(route) {
+                            PlatformPlayerScreen(
+                                url = route.url,
+                                audioOnly = route.audioOnly,
+                                onClose = popBackStack,
+                            )
+                        }
+                    }
+                },
+            )
+        }
     }
 }
 
