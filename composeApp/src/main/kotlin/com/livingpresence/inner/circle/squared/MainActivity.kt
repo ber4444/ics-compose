@@ -22,6 +22,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.compose.PlayerSurface
@@ -88,9 +90,10 @@ fun LoginScreen() {
     // In production, consider implementing proper server-side authentication.
     val isEnabled = password == "be2BE"
 
-    if (playerUrl != null) {
+    val currentPlayerUrl = playerUrl
+    if (currentPlayerUrl != null) {
         VideoPlayerScreen(
-            url = playerUrl!!,
+            url = currentPlayerUrl,
             audioOnly = playerAudioOnly,
             onClose = { playerUrl = null }
         )
@@ -233,7 +236,10 @@ fun VideoPlayerScreen(url: String, audioOnly: Boolean, onClose: () -> Unit) {
     }
 
     DisposableEffect(Unit) {
-        onDispose { player.release() }
+        onDispose {
+            player.pause()
+            player.release()
+        }
     }
 
     Scaffold(
@@ -243,7 +249,10 @@ fun VideoPlayerScreen(url: String, audioOnly: Boolean, onClose: () -> Unit) {
                 title = { Text(if (audioOnly) "Audio Player" else "Video Player") },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
-                        Text("✕")
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close player"
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
