@@ -2,14 +2,60 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.androidApplication)
-    alias(libs.plugins.kotlinAndroid)
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.metro)
+}
+
+kotlin {
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
+    wasmJs {
+        browser()
+        binaries.executable()
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
+            implementation(libs.lifecycle.runtime.compose)
+            implementation(libs.lifecycle.viewmodel)
+            implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.navigation3.runtime)
+            implementation(libs.navigation3.ui)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ktor.client.core)
+        }
+        androidMain.dependencies {
+            implementation(compose.preview)
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.android)
+            implementation(libs.media3.exoplayer)
+            implementation(libs.media3.exoplayer.hls)
+            implementation(libs.media3.ui.compose)
+            implementation(libs.media3.ui.compose.material3)
+            implementation(libs.splash.screen.support)
+        }
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)
+        }
+    }
 }
 
 android {
     namespace = "com.livingpresence.inner.circle.squared"
     compileSdk = 36
+
+    sourceSets["main"].manifest.srcFile("src/main/AndroidManifest.xml")
+    sourceSets["main"].res.srcDirs("src/main/res")
 
     defaultConfig {
         applicationId = "com.livingpresence.inner.circle.squared"
@@ -39,43 +85,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    buildFeatures {
-        compose = true
-    }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "com.livingpresence.inner.circle.squared.generated.resources"
 }
 
 dependencies {
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.lifecycle.runtime.compose)
-    implementation(libs.lifecycle.viewmodel.compose)
-    implementation(libs.lifecycle.viewmodel.ktx)
-    implementation(libs.metro.runtime)
-    implementation(libs.metro.viewmodel)
-    implementation(libs.metro.viewmodel.compose)
-    implementation(libs.navigation3.runtime)
-    implementation(libs.navigation3.ui)
-    implementation(libs.compose.ui)
-    implementation(libs.compose.ui.tooling.preview)
-    implementation(libs.compose.foundation)
-    implementation(libs.compose.material3)
-    implementation(libs.material.icons.core)
-    implementation(libs.material.icons.extended)
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.android)
-    implementation(libs.splash.screen.support)
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.exoplayer.hls)
-    implementation(libs.media3.ui.compose)
-    implementation(libs.media3.ui.compose.material3)
-    
-    debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(compose.uiTooling)
 }

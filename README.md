@@ -1,29 +1,27 @@
 ## About
 
-This is an Android application built with Jetpack Compose and Kotlin for a small community project. 
-The app provides access to live event streaming and payment portals.
-Released on Google Play as Inner Circle Squared.
+This project is a Compose Multiplatform application for the Inner Circle Squared community project.
+It now targets Android and Web with shared UI, shared view-model state, shared navigation, and shared compose resources.
 
 ## Building
 
-This project uses Gradle for building. To build the APK:
+This project uses Gradle for building.
+
+### Android
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-For release builds:
+### Web (Wasm)
 
 ```bash
-./gradlew assembleRelease
+./gradlew wasmJsBrowserDevelopmentRun
 ```
 
-## Dependencies
+## Notes
 
-- Jetpack Compose for UI
-- Navigation 3 for navigation
-- Metro for dependency injection
-- Media3 / ExoPlayer for playback
-- Ktor for HTTP client
-- Kotlin Coroutines for async operations
-- AndroidX Activity Compose
+- Shared UI and app state live in `composeApp/src/commonMain`
+- Shared image resources live in `composeApp/src/commonMain/composeResources`
+- Android entry points and playback integration live in `composeApp/src/androidMain`
+- Web entry points live in `composeApp/src/wasmJsMain`
