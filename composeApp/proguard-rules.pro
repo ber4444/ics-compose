@@ -8,6 +8,10 @@
 -dontwarn com.typesafe.**
 -dontwarn org.slf4j.**
 
+# Media3 / ExoPlayer
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
 # Keep all classes in our package
 -keep class com.livingpresence.inner.circle.squared.** { *; }
 # Please add these rules to your existing keep rules in order to suppress warnings.

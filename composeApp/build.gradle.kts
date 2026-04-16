@@ -61,6 +61,10 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.android)
     implementation(libs.splash.screen.support)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.ui.compose)
+    implementation(libs.media3.ui.compose.material3)
     
     debugImplementation(libs.compose.ui.tooling)
 }
