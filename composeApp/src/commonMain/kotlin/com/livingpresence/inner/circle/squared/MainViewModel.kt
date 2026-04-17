@@ -1,13 +1,7 @@
 package com.livingpresence.inner.circle.squared
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.zacsweers.metro.AppScope
-import dev.zacsweers.metro.ContributesIntoMap
-import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.binding
-import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +12,8 @@ private const val LIVE_EVENTS_PASSWORD = "SECRET"
 private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
 data class PlaybackRequest(
-    val url: String,
-    val audioOnly: Boolean
+    val eventNumber: Int,
+    val audioOnly: Boolean,
 )
 
 data class MainUiState(
@@ -28,15 +22,12 @@ data class MainUiState(
     val isVideosDialogVisible: Boolean = false,
     val availableVideos: List<Int> = emptyList(),
     val isLoadingVideos: Boolean = false,
-    val videoLoadError: String? = null
+    val videoLoadError: String? = null,
 ) {
     val isLiveEventsEnabled: Boolean
         get() = password == LIVE_EVENTS_PASSWORD
 }
 
-@ViewModelKey(MainViewModel::class)
-@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@Inject
 class MainViewModel(
     private val videoRepository: VideoRepository,
 ) : ViewModel() {
@@ -56,7 +47,7 @@ class MainViewModel(
         _uiState.update {
             it.copy(
                 isVideosDialogVisible = true,
-                videoLoadError = null
+                videoLoadError = null,
             )
         }
 
@@ -76,14 +67,12 @@ class MainViewModel(
     fun createPlayback(eventNumber: Int): PlaybackRequest {
         val currentState = _uiState.value
         val playbackRequest = PlaybackRequest(
-            url = getUrl(eventNumber, currentState.audioOnly),
-            audioOnly = currentState.audioOnly
+            eventNumber = eventNumber,
+            audioOnly = currentState.audioOnly,
         )
 
         _uiState.update {
-            it.copy(
-                isVideosDialogVisible = false
-            )
+            it.copy(isVideosDialogVisible = false)
         }
 
         return playbackRequest
@@ -101,7 +90,7 @@ class MainViewModel(
         _uiState.update {
             it.copy(
                 isLoadingVideos = true,
-                videoLoadError = null
+                videoLoadError = null,
             )
         }
 
@@ -112,20 +101,18 @@ class MainViewModel(
                         it.copy(
                             availableVideos = videoList,
                             isLoadingVideos = false,
-                            videoLoadError = null
+                            videoLoadError = null,
                         )
                     }
                 }
                 .onFailure { error ->
-                    Log.e(MainActivity.TAG, "Error fetching video list", error)
                     _uiState.update {
                         it.copy(
                             isLoadingVideos = false,
-                            videoLoadError = error.message ?: DEFAULT_VIDEO_LOAD_ERROR
+                            videoLoadError = error.message ?: DEFAULT_VIDEO_LOAD_ERROR,
                         )
                     }
                 }
         }
     }
 }
-
