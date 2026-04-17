@@ -19,7 +19,7 @@ kotlin {
 
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        outputModuleName.set(providers.provider { "composeApp" })
+        outputModuleName.set("composeApp")
         browser()
         binaries.executable()
     }
