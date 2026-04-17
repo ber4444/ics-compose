@@ -17,6 +17,7 @@ kotlin {
     }
 
     wasmJs {
+        moduleName = "composeApp"
         browser()
         binaries.executable()
     }
