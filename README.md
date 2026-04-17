@@ -16,6 +16,14 @@ This project is a Compose Multiplatform application for the Inner Circle Squared
 ./gradlew wasmJsBrowserDevelopmentRun
 ```
 
+To serve the production build from a static server, use:
+
+```bash
+./gradlew wasmJsBrowserDistribution
+```
+
+Then serve the files from `composeApp/build/dist/wasmJs/productionExecutable/wasmJsBrowserDistribution`.
+
 ## Notes
 
 - Shared UI and app state live in `composeApp/src/commonMain`

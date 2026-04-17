@@ -24,6 +24,14 @@ Run the development server with:
 ./gradlew wasmJsBrowserDevelopmentRun
 ```
 
+To build static files for deployment, run:
+
+```bash
+./gradlew wasmJsBrowserDistribution
+```
+
+Then serve the files from `composeApp/build/dist/wasmJs/productionExecutable/wasmJsBrowserDistribution`.
+
 ## Source layout
 
 - `composeApp/src/commonMain` contains shared Compose UI, ViewModel logic, navigation, and shared resources
