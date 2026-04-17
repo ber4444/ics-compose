@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -181,25 +182,12 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .clipToBounds(),
+        contentAlignment = Alignment.Center,
     ) {
-        val viewportAspectRatio =
-            if (maxWidth > 0.dp && maxHeight > 0.dp) {
-                maxWidth / maxHeight
-            } else {
-                1f
-            }
-        val coverScale = (maxOf(viewportAspectRatio, 1f / viewportAspectRatio) * 1.02f)
-
         Image(
             painter = backgroundPainter,
             contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    rotationZ = 90f
-                    scaleX = coverScale
-                    scaleY = coverScale
-                },
+            modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
         )
 
