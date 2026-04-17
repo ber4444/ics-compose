@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,7 +35,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
@@ -172,12 +175,31 @@ fun LoginScreen(
     onRetryLoadingVideos: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val backgroundPainter = painterResource(Res.drawable.background_image)
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds(),
+    ) {
+        val viewportAspectRatio =
+            if (maxWidth > 0.dp && maxHeight > 0.dp) {
+                maxWidth / maxHeight
+            } else {
+                1f
+            }
+        val coverScale = (maxOf(viewportAspectRatio, 1f / viewportAspectRatio) * 1.02f)
+
         Image(
-            painter = painterResource(Res.drawable.background_image),
+            painter = backgroundPainter,
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    rotationZ = 90f
+                    scaleX = coverScale
+                    scaleY = coverScale
+                },
             contentScale = ContentScale.Crop,
         )
 

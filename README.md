@@ -2,12 +2,12 @@
 
 This project is a Compose Multiplatform application for the Inner Circle Squared community project.
 
-## Building
+## Building and running
 
 ### Android
 
 ```bash
-./gradlew assembleDebug
+./gradlew assembleDebug installDebug
 ```
 
 ### Web (Wasm)
