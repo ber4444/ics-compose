@@ -1,11 +1,15 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-apply(plugin = "com.android.application")
-apply(plugin = "org.jetbrains.kotlin.multiplatform")
-apply(plugin = "org.jetbrains.compose")
-apply(plugin = "org.jetbrains.kotlin.plugin.compose")
+plugins {
+    alias(libs.plugins.androidApplication)
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.compose.compiler)
+}
 
 kotlin {
+    jvmToolchain(17)
+
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
@@ -27,8 +31,7 @@ kotlin {
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
-            implementation(libs.navigation3.runtime)
-            implementation(libs.navigation3.ui)
+            implementation(libs.navigation.compose)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
         }

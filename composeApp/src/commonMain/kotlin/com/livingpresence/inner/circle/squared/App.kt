@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,7 +31,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,18 +44,25 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.ui.NavDisplay
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.savedstate.read
 import com.livingpresence.inner.circle.squared.generated.resources.Res
 import com.livingpresence.inner.circle.squared.generated.resources.background_image
 import org.jetbrains.compose.resources.painterResource
 
-private sealed interface AppRoute
-private data object LoginRoute : AppRoute
-private data class PlayerRoute(
-    val url: String,
-    val audioOnly: Boolean,
-) : AppRoute
+private object AppRoute {
+    const val Login = "login"
+    const val PlayerEventNumberArg = "eventNumber"
+    const val PlayerAudioOnlyArg = "audioOnly"
+    const val Player = "player/{$PlayerEventNumberArg}/{$PlayerAudioOnlyArg}"
+
+    fun player(eventNumber: Int, audioOnly: Boolean): String =
+        "player/$eventNumber/$audioOnly"
+}
 
 @Composable
 fun App() {
@@ -76,49 +81,55 @@ fun App() {
         CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
             val mainViewModel = rememberMainViewModel()
             val uiState by mainViewModel.uiState.collectAsState()
-            val backStack = remember { mutableStateListOf<AppRoute>(LoginRoute) }
-            val popBackStack = {
-                if (backStack.size > 1) {
-                    backStack.removeLast()
+            val navController = rememberNavController()
+
+            NavHost(
+                navController = navController,
+                startDestination = AppRoute.Login,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                composable(route = AppRoute.Login) {
+                    LoginScreen(
+                        uiState = uiState,
+                        onPasswordChange = mainViewModel::onPasswordChanged,
+                        onAudioOnlyChange = mainViewModel::onAudioOnlyChanged,
+                        onShowVideosDialog = mainViewModel::showVideosDialog,
+                        onDismissVideosDialog = mainViewModel::dismissVideosDialog,
+                        onPlayVideo = { eventNumber ->
+                            val playbackRequest = mainViewModel.createPlayback(eventNumber)
+                            navController.navigate(
+                                AppRoute.player(
+                                    eventNumber = playbackRequest.eventNumber,
+                                    audioOnly = playbackRequest.audioOnly,
+                                )
+                            )
+                        },
+                        onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
+                    )
+                }
+
+                composable(
+                    route = AppRoute.Player,
+                    arguments = listOf(
+                        navArgument(AppRoute.PlayerEventNumberArg) {
+                            type = NavType.IntType
+                        },
+                        navArgument(AppRoute.PlayerAudioOnlyArg) {
+                            type = NavType.BoolType
+                        },
+                    ),
+                ) { backStackEntry ->
+                    val arguments = checkNotNull(backStackEntry.arguments)
+                    val eventNumber = arguments.read { getInt(AppRoute.PlayerEventNumberArg) }
+                    val audioOnly = arguments.read { getBoolean(AppRoute.PlayerAudioOnlyArg) }
+
+                    PlatformPlayerScreen(
+                        url = getUrl(eventNumber, audioOnly),
+                        audioOnly = audioOnly,
+                        onClose = navController::popBackStack,
+                    )
                 }
             }
-
-            NavDisplay(
-                backStack = backStack,
-                modifier = Modifier.fillMaxSize(),
-                onBack = popBackStack,
-                entryProvider = { route ->
-                    when (route) {
-                        LoginRoute -> NavEntry(route) {
-                            LoginScreen(
-                                uiState = uiState,
-                                onPasswordChange = mainViewModel::onPasswordChanged,
-                                onAudioOnlyChange = mainViewModel::onAudioOnlyChanged,
-                                onShowVideosDialog = mainViewModel::showVideosDialog,
-                                onDismissVideosDialog = mainViewModel::dismissVideosDialog,
-                                onPlayVideo = { eventNumber ->
-                                    val playbackRequest = mainViewModel.createPlayback(eventNumber)
-                                    backStack.add(
-                                        PlayerRoute(
-                                            url = playbackRequest.url,
-                                            audioOnly = playbackRequest.audioOnly,
-                                        )
-                                    )
-                                },
-                                onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
-                            )
-                        }
-
-                        is PlayerRoute -> NavEntry(route) {
-                            PlatformPlayerScreen(
-                                url = route.url,
-                                audioOnly = route.audioOnly,
-                                onClose = popBackStack,
-                            )
-                        }
-                    }
-                },
-            )
         }
     }
 }

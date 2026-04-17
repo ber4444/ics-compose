@@ -1,11 +1,8 @@
 ## About
 
 This project is a Compose Multiplatform application for the Inner Circle Squared community project.
-It now targets Android and Web with shared UI, shared view-model state, shared navigation, and shared compose resources.
 
 ## Building
-
-This project uses Gradle for building.
 
 ### Android
 

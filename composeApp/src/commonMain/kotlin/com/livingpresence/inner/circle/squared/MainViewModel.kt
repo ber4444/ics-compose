@@ -12,7 +12,7 @@ private const val LIVE_EVENTS_PASSWORD = "SECRET"
 private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
 data class PlaybackRequest(
-    val url: String,
+    val eventNumber: Int,
     val audioOnly: Boolean,
 )
 
@@ -67,7 +67,7 @@ class MainViewModel(
     fun createPlayback(eventNumber: Int): PlaybackRequest {
         val currentState = _uiState.value
         val playbackRequest = PlaybackRequest(
-            url = getUrl(eventNumber, currentState.audioOnly),
+            eventNumber = eventNumber,
             audioOnly = currentState.audioOnly,
         )
 
