@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "InnerCircleSquared"
 include(":composeApp")
+include(":mediakit")
