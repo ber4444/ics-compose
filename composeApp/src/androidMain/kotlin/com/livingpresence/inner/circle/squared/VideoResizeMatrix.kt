@@ -40,6 +40,6 @@ internal fun videoSurfaceModifier(
     }
 }
 
-/** Whether the content is portrait (taller than wide). */
+/** Whether the content is portrait (taller than wide); false for unknown (0). */
 internal fun isPortraitVideo(videoAspectRatio: Float): Boolean =
-    videoAspectRatio in 0f..1f
+    videoAspectRatio > 0f && videoAspectRatio <= 1f

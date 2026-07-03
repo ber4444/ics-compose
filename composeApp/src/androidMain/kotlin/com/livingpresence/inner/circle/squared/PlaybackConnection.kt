@@ -54,14 +54,23 @@ fun rememberPlaybackController(context: Context): MediaController? {
 }
 
 /**
- * Loads an event into the [controller] (if not already loaded), building the
- * ABR media item via the [MediaKitConfig] base URL. The synthesized ladder is
- * resolved by the service-side player through ExoPlayer's normal HLS handling;
- * for explicit ladder synthesis across renditions, see LadderMediaSourceBuilder
- * (the controller path uses a plain media item so the service owns the source).
+ * Builds the [MediaItem] handed to the service-owned player. Includes
+ * [MediaMetadata] so the media-session notification shows a title + artwork
+ * (the launcher icon; a real event thumbnail would need async extraction into
+ * the metadata, tracked as a follow-up). The event number is parsed from the
+ * URL for the title.
  */
-internal fun playbackMediaItem(url: String): MediaItem =
-    MediaItem.Builder()
+internal fun playbackMediaItem(url: String): MediaItem {
+    val eventNumber = Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)
+    return MediaItem.Builder()
         .setUri(url)
         .setMimeType(MimeTypes.APPLICATION_M3U8)
+        .setMediaMetadata(
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(if (eventNumber != null) "Event $eventNumber" else "Inner Circle Squared")
+                .setArtist("Inner Circle Squared")
+                .setArtworkUri(android.net.Uri.parse("android.resource://com.livingpresence.inner.circle.squared/mipmap/ic_launcher"))
+                .build(),
+        )
         .build()
+}

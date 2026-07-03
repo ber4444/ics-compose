@@ -48,11 +48,19 @@ class AndroidDownloadController(
         refresh()
     }
 
-    override fun enqueue(event: EventInfo) {
+    override fun enqueue(event: EventInfo, tier: DownloadQuality) {
         if (event.isLive) return
-        center.enqueue(event)
+        center.enqueue(event, tier.toRenditionTier())
         refresh()
     }
+
+    private fun DownloadQuality.toRenditionTier(): com.livingpresence.mediakit.RenditionTier =
+        when (this) {
+            DownloadQuality.P720 -> com.livingpresence.mediakit.RenditionTier.P720
+            DownloadQuality.P360 -> com.livingpresence.mediakit.RenditionTier.P360
+            DownloadQuality.P160 -> com.livingpresence.mediakit.RenditionTier.P160
+            DownloadQuality.AUDIO -> com.livingpresence.mediakit.RenditionTier.AUDIO
+        }
 
     override fun remove(eventNumber: Int) {
         center.remove(eventNumber)

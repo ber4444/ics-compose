@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 private class NoopDownloadController : DownloadController {
     private val _states = MutableStateFlow<Map<Int, EventDownloadState>>(emptyMap())
     override val states: StateFlow<Map<Int, EventDownloadState>> = _states.asStateFlow()
-    override fun enqueue(event: EventInfo) {}
+    override fun enqueue(event: EventInfo, tier: DownloadQuality) {}
     override fun remove(eventNumber: Int) {}
     override fun refresh() {}
 }

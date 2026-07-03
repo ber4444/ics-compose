@@ -20,6 +20,8 @@ import kotlinx.browser.window
 
 actual fun createHttpClient(): HttpClient = HttpClient()
 
+actual fun eventsPassword(): String = "SECRET"
+
 @Composable
 actual fun PlatformPlayerScreen(
     url: String,
