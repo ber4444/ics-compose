@@ -33,21 +33,40 @@ internal class LadderMediaSourceBuilder(
      * Resolve (if possible) and build the media source for [eventNumber].
      * Returns the source plus the rendition tiers that made it into the ladder
      * (for the quality menu), or a plain fallback source + null tiers.
+     *
+     * Use this when the player is owned by the composable (it can set a
+     * MediaSource directly).
      */
     suspend fun buildForEvent(
         eventNumber: Int,
         resolver: LadderResolver,
     ): BuildResult = withContext(Dispatchers.IO) {
+        val itemResult = resolveForEvent(eventNumber, resolver)
+        BuildResult(
+            mediaSource = sourceFromUri(itemResult.mediaItemUri),
+            renditions = itemResult.renditions,
+        )
+    }
+
+    /**
+     * Resolve the ladder and return a [MediaItem] URI suitable for a
+     * service-owned player (a controller can only set a MediaItem, not a
+     * MediaSource). The URI is either the synthesized `data:` URI or the plain
+     * event URL as a fallback.
+     */
+    suspend fun resolveForEvent(
+        eventNumber: Int,
+        resolver: LadderResolver,
+    ): ItemResult = withContext(Dispatchers.IO) {
         val ladder = runCatching { resolver.resolve(eventNumber) }.getOrNull()
         if (ladder != null && ladder.renditions.size > 1) {
-            val dataUri = buildDataUri(ladder.masterPlaylistText)
-            BuildResult(
-                mediaSource = hlsSourceFromUri(dataUri),
+            ItemResult(
+                mediaItemUri = buildDataUri(ladder.masterPlaylistText),
                 renditions = ladder.renditions,
             )
         } else {
-            BuildResult(
-                mediaSource = plainHlsSource(config.eventUrl(eventNumber)),
+            ItemResult(
+                mediaItemUri = config.eventUrl(eventNumber),
                 renditions = null,
             )
         }
@@ -59,7 +78,7 @@ internal class LadderMediaSourceBuilder(
             Charsets.UTF_8.name(),
         )
 
-    private fun hlsSourceFromUri(uri: String): MediaSource {
+    private fun sourceFromUri(uri: String): MediaSource {
         // data: scheme → a DataSource.Factory that mints DataSchemeDataSource
         // instances, wrapped so non-data URIs in the playlist still resolve via
         // the default HTTP factory.
@@ -75,7 +94,8 @@ internal class LadderMediaSourceBuilder(
         return factory.createMediaSource(mediaItem)
     }
 
-    private fun plainHlsSource(url: String): MediaSource {
+    /** A plain HLS source for [url], used when ladder resolution fails. */
+    fun fallbackSource(url: String): MediaSource {
         val factory = DefaultMediaSourceFactory(context)
         val mediaItem = MediaItem.Builder()
             .setUri(url)
@@ -84,12 +104,16 @@ internal class LadderMediaSourceBuilder(
         return factory.createMediaSource(mediaItem)
     }
 
-    /** A plain HLS source for [url], used when ladder resolution fails. */
-    fun fallbackSource(url: String): MediaSource = plainHlsSource(url)
-
     /** The resolved media source, plus the ladder renditions for the quality menu. */
     internal data class BuildResult(
         val mediaSource: MediaSource,
+        /** Non-null only when a multi-rendition ladder was synthesized. */
+        val renditions: List<com.livingpresence.mediakit.ProbedRendition>?,
+    )
+
+    /** The resolved media-item URI (data: or plain), plus the ladder renditions. */
+    internal data class ItemResult(
+        val mediaItemUri: String,
         /** Non-null only when a multi-rendition ladder was synthesized. */
         val renditions: List<com.livingpresence.mediakit.ProbedRendition>?,
     )

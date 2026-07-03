@@ -38,12 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.media3.common.AudioAttributes as Media3AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.media3.ui.compose.material3.buttons.PlayPauseButton
@@ -69,37 +66,37 @@ actual fun PlatformPlayerScreen(
     val httpClient = remember { HttpClient() }
     val eventNumber = remember(url) { parseEventNumber(url) }
 
-    // Resolve the ABR ladder (if any) just-in-time, then build the player once
-    // the media source is ready. Until then we show a loading state.
+    // Connect to the service-owned player. It survives config changes and
+    // drives background audio / PiP; the composable renders to its surface via
+    // the controller (which implements Player).
+    val controller = rememberPlaybackController(context)
+
+    // Resolve the ABR ladder (if any) just-in-time, producing a media-item URI
+    // (data: URI for the synthesized multivariant playlist, or the plain URL).
     val mediaSourceBuilder = remember { LadderMediaSourceBuilder(context, MediaKitConfig.Default) }
     val ladderResolver = remember(httpClient) { LadderResolver(httpClient, MediaKitConfig.Default) }
-    var buildResult by remember(url) { mutableStateOf<LadderMediaSourceBuilder.BuildResult?>(null) }
+    var itemResult by remember(url) { mutableStateOf<LadderMediaSourceBuilder.ItemResult?>(null) }
 
     LaunchedEffect(url) {
-        buildResult = if (eventNumber != null) {
-            runCatching { mediaSourceBuilder.buildForEvent(eventNumber, ladderResolver) }
+        itemResult = if (eventNumber != null) {
+            runCatching { mediaSourceBuilder.resolveForEvent(eventNumber, ladderResolver) }
                 .getOrNull()
-                ?: LadderMediaSourceBuilder.BuildResult(
-                    mediaSourceBuilder.fallbackSource(url),
-                    renditions = null,
-                )
+                ?: LadderMediaSourceBuilder.ItemResult(url, renditions = null)
         } else {
-            LadderMediaSourceBuilder.BuildResult(
-                mediaSourceBuilder.fallbackSource(url),
-                renditions = null,
-            )
+            LadderMediaSourceBuilder.ItemResult(url, renditions = null)
         }
     }
 
-    val result = buildResult
-    if (result == null) {
+    val resolvedItem = itemResult
+    if (controller == null || resolvedItem == null) {
         PlayerLoadingState(onClose = onClose)
         return
     }
 
     ExoPlayerScreen(
-        mediaSource = result.mediaSource,
-        renditions = result.renditions,
+        player = controller,
+        renditions = resolvedItem.renditions,
+        mediaItemUri = resolvedItem.mediaItemUri,
         url = url,
         onClose = onClose,
     )
@@ -107,36 +104,20 @@ actual fun PlatformPlayerScreen(
 
 @Composable
 private fun ExoPlayerScreen(
-    mediaSource: androidx.media3.exoplayer.source.MediaSource,
+    player: Player,
     renditions: List<ProbedRendition>?,
+    mediaItemUri: String,
     url: String,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
     val videoTapInteractionSource = remember { MutableInteractionSource() }
-    val trackSelector = remember(mediaSource) {
-        DefaultTrackSelector(context).apply {
-            parameters = buildUponParameters()
-                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
-                .build()
-        }
-    }
-    val player = remember(mediaSource) {
-        ExoPlayer.Builder(context)
-            .setTrackSelector(trackSelector)
-            .build()
-            .apply {
-                val audioAttributes = Media3AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .build()
-                setAudioAttributes(audioAttributes, true)
-                setHandleAudioBecomingNoisy(true)
-                volume = 1f
-                setMediaSource(mediaSource)
-                prepare()
-                playWhenReady = true
-            }
+
+    // Hand the resolved media item to the service-owned player once.
+    LaunchedEffect(player, mediaItemUri) {
+        player.setMediaItem(playbackMediaItem(mediaItemUri))
+        player.prepare()
+        player.playWhenReady = true
     }
     val state = rememberPlayerState(player)
 
@@ -166,15 +147,29 @@ private fun ExoPlayerScreen(
         onHide = { showVideoControls = false },
     )
 
-    // Immersive mode: hide system bars while the player is on screen.
-    ImmersiveSystemBars(active = true)
+    // Immersive mode: hide system bars while the player is on screen (not in PiP).
+    ImmersiveSystemBars(active = MainActivity.InPipState.value.let { !it })
 
-    DisposableEffect(player) {
-        onDispose {
-            player.pause()
-            player.release()
+    // Report video size + playing state for PiP params, and collapse controls in PiP.
+    val pipController = LocalPipController.current
+    LaunchedEffect(state.videoSize, state.isPlaying) {
+        val size = state.videoSize
+        if (size.width > 0 && size.height > 0) {
+            pipController?.updateVideoSize(size.width, size.height)
         }
+        pipController?.setPlaying(state.isPlaying)
     }
+    if (MainActivity.InPipState.value) {
+        showVideoControls = false
+        showStats = false
+    }
+
+    // Backgrounding policy (per plan Scrutiny #9): when the app is backgrounded
+    // / in PiP, the video surface is gone but audio keeps playing. With muxed
+    // HLS, disabling the video renderer alone would keep downloading full-bitrate
+    // segments; constraining track selection to the ladder's audio-only tier
+    // cuts the stream to ~51 kbps. On return to foreground, restore video.
+    BackgroundAudioPolicy(player = player, isVideoVisible = !MainActivity.InPipState.value)
 
     val playbackError = state.playbackError
     Box(
