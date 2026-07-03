@@ -72,6 +72,26 @@ private const val CONTROLS_AUTO_HIDE_MS = 3_000L
 private const val LIVE_EDGE_THRESHOLD_MS = 3_000L
 
 /**
+ * What the service-owned player is currently asked to load. The production path
+ * resolves an event into a ladder-synthesized media-item URI; a demo source
+ * (plan.md FU-4, debug-only) is an arbitrary URL with no ladder synthesis.
+ */
+internal sealed interface PlaybackLoadRequest {
+    /** Stable identity so the load effect only re-runs when the source changes. */
+    val loadKey: String
+}
+
+/** The production event stream, resolved via [LadderMediaSourceBuilder]. */
+internal class ProductionSource(val resolvedMediaItemUri: String) : PlaybackLoadRequest {
+    override val loadKey: String = "prod:$resolvedMediaItemUri"
+}
+
+/** A debug demo source (bipbop / vertical / …) loaded as a plain media item. */
+internal class DemoLoadRequest(val source: DemoSource) : PlaybackLoadRequest {
+    override val loadKey: String = "demo:${source.name}:${source.url}"
+}
+
+/**
  * Scrub-preview tunables (plan.md FU-1, Scrutiny #1).
  */
 private const val SCRUB_DEBOUNCE_MS = 200L
@@ -114,6 +134,13 @@ actual fun PlatformPlayerScreen(
         }
     }
 
+    // What the player is currently asked to play. Defaults to the production
+    // (ladder-resolved) source; the debug "Demo" menu swaps in an arbitrary URL
+    // (plan.md FU-4) by switching this state, bypassing ladder synthesis.
+    var activeLoad by remember(url) {
+        mutableStateOf<PlaybackLoadRequest>(ProductionSource(url))
+    }
+
     val resolvedItem = itemResult
     if (controller == null || resolvedItem == null) {
         PlayerLoadingState(onClose = onClose)
@@ -122,11 +149,13 @@ actual fun PlatformPlayerScreen(
 
     ExoPlayerScreen(
         player = controller,
-        renditions = resolvedItem.renditions,
-        mediaItemUri = resolvedItem.mediaItemUri,
+        renditions = if (activeLoad is ProductionSource) resolvedItem.renditions else null,
+        loadRequest = activeLoad,
         url = url,
         eventNumber = eventNumber,
         onClose = onClose,
+        onSelectDemoSource = { source -> activeLoad = DemoLoadRequest(source) },
+        onSelectProduction = { activeLoad = ProductionSource(url) },
     )
 }
 
@@ -134,22 +163,37 @@ actual fun PlatformPlayerScreen(
 private fun ExoPlayerScreen(
     player: Player,
     renditions: List<ProbedRendition>?,
-    mediaItemUri: String,
+    loadRequest: PlaybackLoadRequest,
     url: String,
     eventNumber: Int?,
     onClose: () -> Unit,
+    onSelectDemoSource: (DemoSource) -> Unit,
+    onSelectProduction: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val videoTapInteractionSource = remember { MutableInteractionSource() }
 
-    // Hand the resolved media item to the service-owned player once.
-    LaunchedEffect(player, mediaItemUri) {
-        player.setMediaItem(playbackMediaItem(mediaItemUri))
+    // Hand the media item to the service-owned player whenever the source
+    // changes. Production sources use the ladder-resolved URI (forced HLS); demo
+    // sources load the URL as a plain item so ExoPlayer infers the type.
+    LaunchedEffect(player, loadRequest.loadKey) {
+        val item = when (loadRequest) {
+            is ProductionSource -> playbackMediaItem(loadRequest.resolvedMediaItemUri)
+            is DemoLoadRequest -> demoMediaItem(
+                url = loadRequest.source.url,
+                title = loadRequest.source.label,
+                mimeType = loadRequest.source.mimeAwareMimeType,
+            )
+        }
+        player.setMediaItem(item)
         player.prepare()
         player.playWhenReady = true
     }
     val state = rememberPlayerState(player)
+
+    // Rotate-to-fullscreen toggle (offered for landscape content).
+    val fullscreen = rememberFullscreenToggle()
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
     var sliderFraction by remember(player) { mutableStateOf(0f) }
@@ -328,6 +372,9 @@ private fun ExoPlayerScreen(
                                 TextButton(onClick = {
                                     state.resizeMode = nextPortraitResizeMode(state.resizeMode)
                                 }) { Text("Fit", color = Color.White) }
+                            } else {
+                                // Landscape content: offer rotate-to-fullscreen (plan.md FU-4).
+                                RotateButton(toggle = fullscreen)
                             }
                             ResizeToggleButton(
                                 resizeMode = state.resizeMode,
@@ -336,6 +383,16 @@ private fun ExoPlayerScreen(
                             QualityMenu(player = player, renditions = renditions)
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
+                            }
+                            // Debug-only demo-sources menu (Apple bipbop ladder +
+                            // a vertical sample + the production events), proving
+                            // the player isn't hardwired to one server (FU-4).
+                            if (com.livingpresence.inner.circle.squared.BuildConfig.DEBUG) {
+                                DemoSourcesMenu(
+                                    activeUrl = currentLoadUrl(loadRequest),
+                                    onDemoSourceSelected = onSelectDemoSource,
+                                    onProductionSelected = onSelectProduction,
+                                )
                             }
                         }
                     }
@@ -688,7 +745,7 @@ private fun ImmersiveSystemBars(active: Boolean) {
     }
 }
 
-private fun android.content.Context.findActivity(): Activity? {
+internal fun android.content.Context.findActivity(): Activity? {
     var ctx: android.content.Context = this
     while (ctx is android.content.ContextWrapper) {
         if (ctx is Activity) return ctx
@@ -708,6 +765,11 @@ private fun nextResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
 private fun nextPortraitResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
     ResizeMode.FIT -> ResizeMode.ZOOM
     else -> ResizeMode.FIT
+}
+
+private fun currentLoadUrl(loadRequest: PlaybackLoadRequest): String = when (loadRequest) {
+    is DemoLoadRequest -> loadRequest.source.url
+    is ProductionSource -> loadRequest.resolvedMediaItemUri
 }
 
 private fun parseEventNumber(url: String): Int? =
