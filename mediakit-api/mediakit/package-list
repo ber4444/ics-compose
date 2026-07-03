@@ -1,0 +1,74 @@
+$dokka.format:html-v1
+$dokka.linkExtension:html
+$dokka.location:com.livingpresence.mediakit////PointingToDeclaration/mediakit/com.livingpresence.mediakit/index.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog.Companion///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/index.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_MAX_CONCURRENCY/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-m-a-x_-c-o-n-c-u-r-r-e-n-c-y.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/index.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/EventCatalog/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-event-catalog.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/loadEvents/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/load-events.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/probeEvent/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/probe-event.html
+$dokka.location:com.livingpresence.mediakit/EventInfo///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/index.html
+$dokka.location:com.livingpresence.mediakit/EventInfo/EventInfo/#kotlin.Int#kotlin.Boolean#kotlin.Long/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/-event-info.html
+$dokka.location:com.livingpresence.mediakit/EventInfo/durationMs/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/duration-ms.html
+$dokka.location:com.livingpresence.mediakit/EventInfo/eventNumber/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/event-number.html
+$dokka.location:com.livingpresence.mediakit/EventInfo/isLive/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/is-live.html
+$dokka.location:com.livingpresence.mediakit/LadderResolver///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/index.html
+$dokka.location:com.livingpresence.mediakit/LadderResolver/LadderResolver/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/-ladder-resolver.html
+$dokka.location:com.livingpresence.mediakit/LadderResolver/probeRenditions/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/probe-renditions.html
+$dokka.location:com.livingpresence.mediakit/LadderResolver/resolve/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/resolve.html
+$dokka.location:com.livingpresence.mediakit/LadderSynthesizer///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-synthesizer/index.html
+$dokka.location:com.livingpresence.mediakit/LadderSynthesizer/synthesize/#kotlin.collections.List[com.livingpresence.mediakit.ProbedRendition]/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-synthesizer/synthesize.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig.Companion///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-companion/index.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig.Companion/DEFAULT_HOST/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-companion/-d-e-f-a-u-l-t_-h-o-s-t.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig.Companion/DEFAULT_MAX_EVENT_NUMBER/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-companion/-d-e-f-a-u-l-t_-m-a-x_-e-v-e-n-t_-n-u-m-b-e-r.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig.Companion/Default/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-companion/-default.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/index.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/MediaKitConfig/#kotlin.String#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-media-kit-config.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/MediaKitConfig/#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/-media-kit-config.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/baseStreamUrl/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/base-stream-url.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/eventUrl/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/event-url.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/host/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/host.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/maxEventNumber/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/max-event-number.html
+$dokka.location:com.livingpresence.mediakit/MediaKitConfig/renditionUrl/#kotlin.Int#com.livingpresence.mediakit.RenditionTier/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-media-kit-config/rendition-url.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/index.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist/MediaPlaylist/#kotlin.Boolean#kotlin.Double#kotlin.Int#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/-media-playlist.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist/durationSeconds/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/duration-seconds.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist/isLive/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/is-live.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist/segmentCount/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/segment-count.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.MediaPlaylist/targetDurationSeconds/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-media-playlist/target-duration-seconds.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/index.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/Variant/#kotlin.String#kotlin.Int#kotlin.Int?#kotlin.String?#kotlin.String?#kotlin.Double?#kotlin.Boolean/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/-variant.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/averageBandwidthBitsPerSecond/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/average-bandwidth-bits-per-second.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/bandwidthBitsPerSecond/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/bandwidth-bits-per-second.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/codecs/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/codecs.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/frameRate/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/frame-rate.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/isIFrameOnly/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/is-i-frame-only.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/resolution/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/resolution.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector.Variant/uri/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/-variant/uri.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/index.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector/parseMaster/#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/parse-master.html
+$dokka.location:com.livingpresence.mediakit/PlaylistInspector/parseMediaPlaylist/#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-playlist-inspector/parse-media-playlist.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/index.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/ProbedRendition/#com.livingpresence.mediakit.RenditionTier#kotlin.Int#kotlin.Int#kotlin.Int#kotlin.String#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/-probed-rendition.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/bandwidthBitsPerSecond/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/bandwidth-bits-per-second.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/chunklistUri/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/chunklist-uri.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/codecs/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/codecs.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/height/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/height.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/isAudioOnly/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/is-audio-only.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/resolutionAttribute/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/resolution-attribute.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/tier/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/tier.html
+$dokka.location:com.livingpresence.mediakit/ProbedRendition/width/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-probed-rendition/width.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier.AUDIO///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-a-u-d-i-o/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier.P160///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-p160/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier.P360///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-p360/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier.P720///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-p720/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier/urlSuffix/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/url-suffix.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier/valueOf/#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/value-of.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier/values/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/values.html
+$dokka.location:com.livingpresence.mediakit/ResolvedLadder///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/index.html
+$dokka.location:com.livingpresence.mediakit/ResolvedLadder/ResolvedLadder/#kotlin.String#kotlin.collections.List[com.livingpresence.mediakit.ProbedRendition]/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/-resolved-ladder.html
+$dokka.location:com.livingpresence.mediakit/ResolvedLadder/masterPlaylistText/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/master-playlist-text.html
+$dokka.location:com.livingpresence.mediakit/ResolvedLadder/renditions/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/renditions.html
+com.livingpresence.mediakit
+
