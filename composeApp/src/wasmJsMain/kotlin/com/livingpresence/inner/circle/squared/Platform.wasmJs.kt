@@ -18,7 +18,6 @@ actual fun createHttpClient(): HttpClient = HttpClient()
 @Composable
 actual fun PlatformPlayerScreen(
     url: String,
-    audioOnly: Boolean,
     onClose: () -> Unit,
 ) {
     Column(
@@ -28,13 +27,7 @@ actual fun PlatformPlayerScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
     ) {
-        Text(
-            if (audioOnly) {
-                "Open the live audio stream in a new tab."
-            } else {
-                "Open the live video stream in a new tab."
-            },
-        )
+        Text("Open the live video stream in a new tab.")
         Button(onClick = { window.open(url, "_blank") }) {
             Text("Open stream")
         }

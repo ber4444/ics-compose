@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +20,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -61,11 +58,9 @@ import org.jetbrains.compose.resources.painterResource
 private object AppRoute {
     const val Login = "login"
     const val PlayerEventNumberArg = "eventNumber"
-    const val PlayerAudioOnlyArg = "audioOnly"
-    const val Player = "player/{$PlayerEventNumberArg}/{$PlayerAudioOnlyArg}"
+    const val Player = "player/{$PlayerEventNumberArg}"
 
-    fun player(eventNumber: Int, audioOnly: Boolean): String =
-        "player/$eventNumber/$audioOnly"
+    fun player(eventNumber: Int): String = "player/$eventNumber"
 }
 
 @Composable
@@ -96,17 +91,11 @@ fun App() {
                     LoginScreen(
                         uiState = uiState,
                         onPasswordChange = mainViewModel::onPasswordChanged,
-                        onAudioOnlyChange = mainViewModel::onAudioOnlyChanged,
                         onShowVideosDialog = mainViewModel::showVideosDialog,
                         onDismissVideosDialog = mainViewModel::dismissVideosDialog,
                         onPlayVideo = { eventNumber ->
-                            val playbackRequest = mainViewModel.createPlayback(eventNumber)
-                            navController.navigate(
-                                AppRoute.player(
-                                    eventNumber = playbackRequest.eventNumber,
-                                    audioOnly = playbackRequest.audioOnly,
-                                )
-                            )
+                            mainViewModel.playVideo(eventNumber)
+                            navController.navigate(AppRoute.player(eventNumber))
                         },
                         onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
                     )
@@ -118,18 +107,13 @@ fun App() {
                         navArgument(AppRoute.PlayerEventNumberArg) {
                             type = NavType.IntType
                         },
-                        navArgument(AppRoute.PlayerAudioOnlyArg) {
-                            type = NavType.BoolType
-                        },
                     ),
                 ) { backStackEntry ->
                     val arguments = checkNotNull(backStackEntry.arguments)
                     val eventNumber = arguments.read { getInt(AppRoute.PlayerEventNumberArg) }
-                    val audioOnly = arguments.read { getBoolean(AppRoute.PlayerAudioOnlyArg) }
 
                     PlatformPlayerScreen(
-                        url = getUrl(eventNumber, audioOnly),
-                        audioOnly = audioOnly,
+                        url = getUrl(eventNumber),
                         onClose = navController::popBackStack,
                     )
                 }
@@ -169,7 +153,6 @@ fun InnerCircleSquaredTheme(content: @Composable () -> Unit) {
 fun LoginScreen(
     uiState: MainUiState,
     onPasswordChange: (String) -> Unit,
-    onAudioOnlyChange: (Boolean) -> Unit,
     onShowVideosDialog: () -> Unit,
     onDismissVideosDialog: () -> Unit,
     onPlayVideo: (Int) -> Unit,
@@ -200,30 +183,6 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(20.dp))
 
-            Row(
-                modifier = Modifier
-                    .width(200.dp)
-                    .background(Color(0x99FFFFFF))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "Audio only",
-                    modifier = Modifier.weight(1f),
-                    color = Color(0xFF00695C),
-                )
-                Switch(
-                    checked = uiState.audioOnly,
-                    onCheckedChange = onAudioOnlyChange,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color(0xFFEF5350),
-                        checkedTrackColor = Color(0xFFE57373),
-                    ),
-                )
-            }
-
-            Spacer(modifier = Modifier.height(5.dp))
-
             Button(
                 onClick = onShowVideosDialog,
                 enabled = uiState.isLiveEventsEnabled,
@@ -241,8 +200,9 @@ fun LoginScreen(
             TextField(
                 value = uiState.password,
                 onValueChange = onPasswordChange,
+                label = { Text("Login to events") },
                 modifier = Modifier
-                    .width(100.dp)
+                    .width(160.dp)
                     .background(Color(0x99FFFFFF)),
                 colors = TextFieldDefaults.colors(
                     focusedTextColor = Color.Red,
