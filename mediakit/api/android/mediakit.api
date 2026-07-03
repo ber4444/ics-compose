@@ -1,13 +1,18 @@
 public final class com/livingpresence/mediakit/EventCatalog {
 	public static final field Companion Lcom/livingpresence/mediakit/EventCatalog$Companion;
 	public static final field DEFAULT_MAX_CONCURRENCY I
-	public fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;I)V
-	public synthetic fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun loadEvents (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final field DEFAULT_MAX_PROBE_ATTEMPTS I
+	public synthetic fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;IJLkotlin/time/TimeSource;IJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;IJLkotlin/time/TimeSource;IJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun invalidate ()V
+	public final fun loadEvents (ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun loadEvents$default (Lcom/livingpresence/mediakit/EventCatalog;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun probeEvent (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class com/livingpresence/mediakit/EventCatalog$Companion {
+	public final fun getDEFAULT_CACHE_TTL-UwyO8pc ()J
+	public final fun getDEFAULT_RETRY_BACKOFF-UwyO8pc ()J
 }
 
 public final class com/livingpresence/mediakit/EventInfo {
