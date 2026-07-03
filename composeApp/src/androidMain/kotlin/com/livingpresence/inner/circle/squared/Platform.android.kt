@@ -12,12 +12,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -50,9 +48,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
@@ -68,35 +64,32 @@ actual fun createHttpClient(): HttpClient = HttpClient()
 @Composable
 actual fun PlatformPlayerScreen(
     url: String,
-    audioOnly: Boolean,
     onClose: () -> Unit,
 ) {
     val liveEdgeThresholdMs = 3_000L
     val context = LocalContext.current
     val videoTapInteractionSource = remember { MutableInteractionSource() }
-    val trackSelector = remember(url, audioOnly) {
+    val trackSelector = remember(url) {
         DefaultTrackSelector(context).apply {
             parameters = buildUponParameters()
                 .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                 .build()
         }
     }
-    val player = remember(url, audioOnly) {
+    val player = remember(url) {
         ExoPlayer.Builder(context)
             .setTrackSelector(trackSelector)
             .build()
             .apply {
                 val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
-                    .setContentType(
-                        if (audioOnly) C.AUDIO_CONTENT_TYPE_MUSIC else C.AUDIO_CONTENT_TYPE_MOVIE,
-                    )
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
                     .build()
 
                 setAudioAttributes(audioAttributes, true)
                 setHandleAudioBecomingNoisy(true)
                 volume = 1f
-                setMediaSource(buildPlaybackMediaSource(context, url, audioOnly))
+                setMediaSource(buildPlaybackMediaSource(context, url))
                 prepare()
                 playWhenReady = true
             }
@@ -190,132 +183,86 @@ actual fun PlatformPlayerScreen(
             currentPosition
         }
 
-        if (!audioOnly) {
-            BoxWithConstraints(
-                modifier = Modifier.fillMaxSize(),
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            val safeVideoAspectRatio = videoAspectRatio.takeIf { it > 0f } ?: (16f / 9f)
+            val containerAspectRatio = maxWidth.value / maxHeight.value
+            val baseVideoModifier = if (containerAspectRatio > safeVideoAspectRatio) {
+                Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(safeVideoAspectRatio)
+            } else {
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(safeVideoAspectRatio)
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds(),
                 contentAlignment = Alignment.Center,
             ) {
-                val safeVideoAspectRatio = videoAspectRatio.takeIf { it > 0f } ?: (16f / 9f)
-                val containerAspectRatio = maxWidth.value / maxHeight.value
-                val baseVideoModifier = if (containerAspectRatio > safeVideoAspectRatio) {
-                    Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(safeVideoAspectRatio)
-                } else {
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(safeVideoAspectRatio)
-                }
-
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clipToBounds(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = baseVideoModifier.clickable(
-                            interactionSource = videoTapInteractionSource,
-                            indication = null,
-                        ) {
-                            showVideoControls = !showVideoControls
-                        },
+                    modifier = baseVideoModifier.clickable(
+                        interactionSource = videoTapInteractionSource,
+                        indication = null,
                     ) {
-                        PlayerSurface(
-                            player = player,
-                            surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-                            modifier = Modifier.matchParentSize(),
-                        )
+                        showVideoControls = !showVideoControls
+                    },
+                ) {
+                    PlayerSurface(
+                        player = player,
+                        surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
+                        modifier = Modifier.matchParentSize(),
+                    )
 
-                        AnimatedVisibility(
-                            visible = showVideoControls,
-                            modifier = Modifier.align(Alignment.BottomCenter),
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                        ) {
-                            PlayerControlPanel(
-                                player = player,
-                                currentPosition = displayedPosition,
-                                duration = duration,
-                                isSeekable = isSeekable && duration > 0L,
-                                isLive = isLive,
-                                isPlaying = isPlaying,
-                                sliderFraction = sliderFraction,
-                                canJumpToLive = canJumpToLive,
-                                onSliderValueChange = {
-                                    isScrubbing = true
-                                    sliderFraction = it
-                                },
-                                onSliderValueChangeFinished = {
-                                    if (duration > 0L) {
-                                        val newPosition = (duration * sliderFraction)
-                                            .roundToLong()
-                                            .coerceIn(0L, duration)
-                                        player.seekTo(newPosition)
-                                        currentPosition = newPosition
-                                    }
-                                    isScrubbing = false
-                                },
-                                onJumpToLive = {
-                                    player.seekToDefaultPosition()
-                                    player.play()
-                                    currentPosition = duration
-                                    sliderFraction = 1f
-                                    isScrubbing = false
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.Black.copy(alpha = 0.55f))
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                isOverlay = true,
-                            )
-                        }
+                    AnimatedVisibility(
+                        visible = showVideoControls,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        PlayerControlPanel(
+                            player = player,
+                            currentPosition = displayedPosition,
+                            duration = duration,
+                            isSeekable = isSeekable && duration > 0L,
+                            isLive = isLive,
+                            isPlaying = isPlaying,
+                            sliderFraction = sliderFraction,
+                            canJumpToLive = canJumpToLive,
+                            onSliderValueChange = {
+                                isScrubbing = true
+                                sliderFraction = it
+                            },
+                            onSliderValueChangeFinished = {
+                                if (duration > 0L) {
+                                    val newPosition = (duration * sliderFraction)
+                                        .roundToLong()
+                                        .coerceIn(0L, duration)
+                                    player.seekTo(newPosition)
+                                    currentPosition = newPosition
+                                }
+                                isScrubbing = false
+                            },
+                            onJumpToLive = {
+                                player.seekToDefaultPosition()
+                                player.play()
+                                currentPosition = duration
+                                sliderFraction = 1f
+                                isScrubbing = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            isOverlay = true,
+                        )
                     }
                 }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                PlayerControlPanel(
-                    player = player,
-                    currentPosition = displayedPosition,
-                    duration = duration,
-                    isSeekable = isSeekable && duration > 0L,
-                    isLive = isLive,
-                    isPlaying = isPlaying,
-                    sliderFraction = sliderFraction,
-                    canJumpToLive = canJumpToLive,
-                    onSliderValueChange = {
-                        isScrubbing = true
-                        sliderFraction = it
-                    },
-                    onSliderValueChangeFinished = {
-                        if (duration > 0L) {
-                            val newPosition = (duration * sliderFraction)
-                                .roundToLong()
-                                .coerceIn(0L, duration)
-                            player.seekTo(newPosition)
-                            currentPosition = newPosition
-                        }
-                        isScrubbing = false
-                    },
-                    onJumpToLive = {
-                        player.seekToDefaultPosition()
-                        player.play()
-                        currentPosition = duration
-                        sliderFraction = 1f
-                        isScrubbing = false
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    isOverlay = false,
-                )
             }
         }
 
@@ -467,7 +414,6 @@ private fun formatPlaybackTime(timeMs: Long): String {
 private fun buildPlaybackMediaSource(
     context: android.content.Context,
     url: String,
-    audioOnly: Boolean,
 ): MediaSource {
     val mediaSourceFactory = DefaultMediaSourceFactory(context)
     val mediaItem = MediaItem.Builder()
@@ -475,41 +421,5 @@ private fun buildPlaybackMediaSource(
         .setMimeType(MimeTypes.APPLICATION_M3U8)
         .build()
 
-    if (audioOnly) {
-        return mediaSourceFactory.createMediaSource(mediaItem)
-    }
-
-    val audioUrl = deriveAudioOnlyUrl(url)
-    if (audioUrl == null || audioUrl == url) {
-        return mediaSourceFactory.createMediaSource(mediaItem)
-    }
-
-    val videoSource = FilteringMediaSource(
-        mediaSourceFactory.createMediaSource(mediaItem),
-        C.TRACK_TYPE_VIDEO,
-    )
-    val audioSource = FilteringMediaSource(
-        mediaSourceFactory.createMediaSource(
-            MediaItem.Builder()
-                .setUri(audioUrl)
-                .setMimeType(MimeTypes.APPLICATION_M3U8)
-                .build(),
-        ),
-        C.TRACK_TYPE_AUDIO,
-    )
-
-    return MergingMediaSource(
-        true,
-        videoSource,
-        audioSource,
-    )
-}
-
-private fun deriveAudioOnlyUrl(url: String): String? {
-    val eventUrlRegex = Regex("""(event\d+)(?!_aac)(/playlist\.m3u8(?:\?.*)?)""")
-    return if (eventUrlRegex.containsMatchIn(url)) {
-        url.replace(eventUrlRegex, "$1_aac$2")
-    } else {
-        null
-    }
+    return mediaSourceFactory.createMediaSource(mediaItem)
 }

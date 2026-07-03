@@ -12,7 +12,7 @@ class VideoRepository(
 
         for (eventNumber in 20 downTo 1) {
             try {
-                val response: HttpResponse = httpClient.get(getUrl(eventNumber, false))
+                val response: HttpResponse = httpClient.get(getUrl(eventNumber))
                 if (response.status.value != 404) {
                     availableVideos.add(eventNumber)
                 }

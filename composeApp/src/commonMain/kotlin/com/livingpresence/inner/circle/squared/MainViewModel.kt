@@ -11,14 +11,8 @@ import kotlinx.coroutines.launch
 private const val LIVE_EVENTS_PASSWORD = "SECRET"
 private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
-data class PlaybackRequest(
-    val eventNumber: Int,
-    val audioOnly: Boolean,
-)
-
 data class MainUiState(
     val password: String = "",
-    val audioOnly: Boolean = false,
     val isVideosDialogVisible: Boolean = false,
     val availableVideos: List<Int> = emptyList(),
     val isLoadingVideos: Boolean = false,
@@ -37,10 +31,6 @@ class MainViewModel(
 
     fun onPasswordChanged(password: String) {
         _uiState.update { it.copy(password = password) }
-    }
-
-    fun onAudioOnlyChanged(audioOnly: Boolean) {
-        _uiState.update { it.copy(audioOnly = audioOnly) }
     }
 
     fun showVideosDialog() {
@@ -64,18 +54,17 @@ class MainViewModel(
         loadVideos(forceRefresh = true)
     }
 
-    fun createPlayback(eventNumber: Int): PlaybackRequest {
-        val currentState = _uiState.value
-        val playbackRequest = PlaybackRequest(
-            eventNumber = eventNumber,
-            audioOnly = currentState.audioOnly,
-        )
+    /**
+     * Ensures the available-events list has been fetched at least once. Idempotent —
+     * a no-op when a non-empty list is already cached. Used by the feed/gallery screen
+     * (Phase 2) to trigger loading on entry without forcing a refresh.
+     */
+    fun ensureVideosLoaded() {
+        loadVideos()
+    }
 
-        _uiState.update {
-            it.copy(isVideosDialogVisible = false)
-        }
-
-        return playbackRequest
+    fun playVideo(eventNumber: Int) {
+        _uiState.update { it.copy(isVideosDialogVisible = false) }
     }
 
     private fun loadVideos(forceRefresh: Boolean = false) {
