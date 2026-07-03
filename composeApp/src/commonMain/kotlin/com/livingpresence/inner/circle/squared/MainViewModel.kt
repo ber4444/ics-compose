@@ -2,6 +2,7 @@ package com.livingpresence.inner.circle.squared
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.livingpresence.mediakit.EventInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,8 +14,8 @@ private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
 data class MainUiState(
     val password: String = "",
-    val isVideosDialogVisible: Boolean = false,
-    val availableVideos: List<Int> = emptyList(),
+    val isGalleryVisible: Boolean = false,
+    val availableEvents: List<EventInfo> = emptyList(),
     val isLoadingVideos: Boolean = false,
     val videoLoadError: String? = null,
 ) {
@@ -33,21 +34,18 @@ class MainViewModel(
         _uiState.update { it.copy(password = password) }
     }
 
-    fun showVideosDialog() {
+    fun showGallery() {
         _uiState.update {
             it.copy(
-                isVideosDialogVisible = true,
+                isGalleryVisible = true,
                 videoLoadError = null,
             )
         }
-
-        if (_uiState.value.availableVideos.isEmpty()) {
-            loadVideos()
-        }
+        ensureVideosLoaded()
     }
 
-    fun dismissVideosDialog() {
-        _uiState.update { it.copy(isVideosDialogVisible = false) }
+    fun hideGallery() {
+        _uiState.update { it.copy(isGalleryVisible = false) }
     }
 
     fun retryLoadingVideos() {
@@ -56,15 +54,14 @@ class MainViewModel(
 
     /**
      * Ensures the available-events list has been fetched at least once. Idempotent —
-     * a no-op when a non-empty list is already cached. Used by the feed/gallery screen
-     * (Phase 2) to trigger loading on entry without forcing a refresh.
+     * a no-op when a non-empty list is already cached or a load is in flight.
      */
     fun ensureVideosLoaded() {
         loadVideos()
     }
 
     fun playVideo(eventNumber: Int) {
-        _uiState.update { it.copy(isVideosDialogVisible = false) }
+        _uiState.update { it.copy(isGalleryVisible = false) }
     }
 
     private fun loadVideos(forceRefresh: Boolean = false) {
@@ -72,7 +69,7 @@ class MainViewModel(
         if (currentState.isLoadingVideos) {
             return
         }
-        if (!forceRefresh && currentState.availableVideos.isNotEmpty()) {
+        if (!forceRefresh && currentState.availableEvents.isNotEmpty()) {
             return
         }
 
@@ -84,11 +81,11 @@ class MainViewModel(
         }
 
         viewModelScope.launch {
-            runCatching { videoRepository.getAvailableVideos() }
-                .onSuccess { videoList ->
+            runCatching { videoRepository.loadEvents() }
+                .onSuccess { events ->
                     _uiState.update {
                         it.copy(
-                            availableVideos = videoList,
+                            availableEvents = events,
                             isLoadingVideos = false,
                             videoLoadError = null,
                         )

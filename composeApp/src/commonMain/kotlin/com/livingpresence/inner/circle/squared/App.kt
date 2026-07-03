@@ -11,14 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
@@ -57,6 +51,7 @@ import org.jetbrains.compose.resources.painterResource
 
 private object AppRoute {
     const val Login = "login"
+    const val Gallery = "gallery"
     const val PlayerEventNumberArg = "eventNumber"
     const val Player = "player/{$PlayerEventNumberArg}"
 
@@ -91,13 +86,22 @@ fun App() {
                     LoginScreen(
                         uiState = uiState,
                         onPasswordChange = mainViewModel::onPasswordChanged,
-                        onShowVideosDialog = mainViewModel::showVideosDialog,
-                        onDismissVideosDialog = mainViewModel::dismissVideosDialog,
-                        onPlayVideo = { eventNumber ->
+                        onShowGallery = {
+                            mainViewModel.showGallery()
+                            navController.navigate(AppRoute.Gallery)
+                        },
+                    )
+                }
+
+                composable(route = AppRoute.Gallery) {
+                    GalleryScreen(
+                        uiState = uiState,
+                        onRetry = mainViewModel::retryLoadingVideos,
+                        onPlayEvent = { eventNumber ->
                             mainViewModel.playVideo(eventNumber)
                             navController.navigate(AppRoute.player(eventNumber))
                         },
-                        onRetryLoadingVideos = mainViewModel::retryLoadingVideos,
+                        onClose = navController::popBackStack,
                     )
                 }
 
@@ -153,10 +157,7 @@ fun InnerCircleSquaredTheme(content: @Composable () -> Unit) {
 fun LoginScreen(
     uiState: MainUiState,
     onPasswordChange: (String) -> Unit,
-    onShowVideosDialog: () -> Unit,
-    onDismissVideosDialog: () -> Unit,
-    onPlayVideo: (Int) -> Unit,
-    onRetryLoadingVideos: () -> Unit,
+    onShowGallery: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     val backgroundPainter = painterResource(Res.drawable.background_image)
@@ -184,7 +185,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = onShowVideosDialog,
+                onClick = onShowGallery,
                 enabled = uiState.isLiveEventsEnabled,
                 modifier = Modifier.width(150.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -235,81 +236,34 @@ fun LoginScreen(
             }
         }
     }
-
-    if (uiState.isVideosDialogVisible) {
-        VideosDialog(
-            videoList = uiState.availableVideos,
-            isLoading = uiState.isLoadingVideos,
-            error = uiState.videoLoadError,
-            onDismiss = onDismissVideosDialog,
-            onPlayVideo = onPlayVideo,
-            onRetry = onRetryLoadingVideos,
-        )
-    }
 }
 
+/**
+ * Full-screen gallery of available events. Hosts the [LiveEventsGallery] feed
+ * with a top bar offering a back/close affordance.
+ */
 @Composable
-fun VideosDialog(
-    videoList: List<Int>,
-    isLoading: Boolean,
-    error: String?,
-    onDismiss: () -> Unit,
-    onPlayVideo: (Int) -> Unit,
+fun GalleryScreen(
+    uiState: MainUiState,
     onRetry: () -> Unit,
+    onPlayEvent: (Int) -> Unit,
+    onClose: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Videos List") },
-        text = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
-            ) {
-                when {
-                    isLoading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    }
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        LiveEventsGallery(
+            events = uiState.availableEvents,
+            isLoading = uiState.isLoadingVideos,
+            error = uiState.videoLoadError,
+            onPlayEvent = onPlayEvent,
+            onRetry = onRetry,
+            modifier = Modifier.fillMaxSize(),
+        )
 
-                    error != null -> {
-                        Column(
-                            modifier = Modifier.align(Alignment.Center),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Text(text = "Error: $error")
-                            Button(onClick = onRetry) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-
-                    videoList.isNotEmpty() -> {
-                        LazyColumn {
-                            items(videoList) { eventNumber ->
-                                TextButton(
-                                    onClick = { onPlayVideo(eventNumber) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text("event $eventNumber")
-                                }
-                            }
-                        }
-                    }
-
-                    else -> {
-                        Text(
-                            text = "No videos available",
-                            modifier = Modifier.align(Alignment.Center),
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        },
-    )
+        TextButton(
+            onClick = onClose,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            Text("Close")
+        }
+    }
 }
