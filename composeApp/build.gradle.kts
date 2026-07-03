@@ -53,6 +53,7 @@ kotlin {
             implementation(libs.media3.ui.compose)
             implementation(libs.media3.ui.compose.material3)
             implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.vosk.android)
             implementation(libs.splash.screen.support)
         }
         wasmJsMain.dependencies {

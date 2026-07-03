@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -194,6 +195,11 @@ private fun ExoPlayerScreen(
 
     // Rotate-to-fullscreen toggle (offered for landscape content).
     val fullscreen = rememberFullscreenToggle()
+
+    // Phase 8: on-device transcription (CC). The RenderersFactory in the service
+    // taps PCM; captions render via CaptionOverlay below. Lazily loads the Vosk
+    // model on first enable (~50 MB, shipped as an asset, not bundled).
+    val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
     var sliderFraction by remember(player) { mutableStateOf(0f) }
@@ -384,6 +390,8 @@ private fun ExoPlayerScreen(
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
+                            // Phase 8: closed-captions toggle (on-device Vosk).
+                            CaptionToggleButton(controller = captionController)
                             // Debug-only demo-sources menu (Apple bipbop ladder +
                             // a vertical sample + the production events), proving
                             // the player isn't hardwired to one server (FU-4).
@@ -470,6 +478,16 @@ private fun ExoPlayerScreen(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(top = 56.dp, start = 8.dp),
+                    )
+                }
+
+                // Phase 8: rolling transcription captions over the video.
+                if (captionController.enabled) {
+                    CaptionOverlay(
+                        captions = captionController.captions,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 120.dp, start = 24.dp, end = 24.dp),
                     )
                 }
             }
@@ -658,6 +676,24 @@ private fun PlayerControlPanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CaptionToggleButton(controller: CaptionController) {
+    val ready by controller.ready.collectAsState()
+    val loadError by controller.loadError.collectAsState()
+    val label = when {
+        controller.enabled && loadError != null -> "CC!"
+        controller.enabled && !ready -> "CC…"
+        controller.enabled -> "CC●"
+        else -> "CC"
+    }
+    TextButton(onClick = controller.onToggle) {
+        Text(
+            text = label,
+            color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
+        )
     }
 }
 

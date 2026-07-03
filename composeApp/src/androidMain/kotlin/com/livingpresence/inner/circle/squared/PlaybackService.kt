@@ -67,6 +67,15 @@ class PlaybackService : MediaSessionService() {
                 .build(),
         )
         val player = ExoPlayer.Builder(this)
+            // Phase 8: a custom RenderersFactory taps decoded PCM (via a
+            // TeeAudioProcessor → TranscriptionEngine) without touching playback,
+            // and leaves the built-in text renderer enabled so CEA-608/708 would
+            // also surface if a stream carried them. The engine is a process
+            // singleton; it's started/stopped lazily from the player screen's CC
+            // toggle (not here) so the ~50 MB model is loaded only on opt-in.
+            .setRenderersFactory(
+                TranscriptionRenderersFactory(this, TranscriptionEngine.get(this)),
+            )
             .setTrackSelector(trackSelector)
             .setLoadControl(MemoryGovernor.adaptiveLoadControl(this))
             .setAudioAttributes(
