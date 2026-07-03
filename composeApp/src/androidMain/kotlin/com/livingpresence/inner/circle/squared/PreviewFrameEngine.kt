@@ -23,6 +23,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import com.livingpresence.mediakit.MediaKitConfig
 import com.livingpresence.mediakit.RenditionTier
 import kotlinx.coroutines.Dispatchers
@@ -35,18 +36,23 @@ import java.io.File
 
 /**
  * A single shared, muted, video-only ExoPlayer used to extract poster frames
- * from the `_160p` rendition for feed tiles (and, in Phase 3, scrub previews).
+ * from the `_160p` rendition for feed tiles and scrub-preview frames for the
+ * player seekbar.
  *
  * One decoder instead of N per-tile players is the legitimate version of "frame
  * recycling" — MediaCodec owns the decoded-frame buffers; we own one extractor
- * and a two-tier bitmap cache (memory LRU → disk store). Cost per unique
+ * and a two-tier poster cache (memory LRU → disk store). Cost per unique
  * thumbnail ≈ one 2 s segment at ~262 kbps ≈ 65 KB of network, decode trivial
- * at 284×160. The disk tier means a decoded frame survives process death and
+ * at 284×160. The disk tier means a decoded poster survives process death and
  * is not re-decoded on relaunch (plan.md FU-2).
  *
+ * Scrub-preview frames use a separate in-memory LRU keyed by event number +
+ * position (rounded to the nearest keyframe — [KEYFRAME_GRANULARITY_MS] — so
+ * repeated scrubs over the same ~2 s span are free, per plan.md Scrutiny #1).
+ * The disk tier is intentionally poster-only (scrub frames are ephemeral).
+ *
  * Frames are captured by rendering onto an off-screen [android.media.ImageReader]
- * surface and copying the resulting [Bitmap]. The cache is keyed by event number
- * + the seek position so repeated tile renders are free.
+ * surface and copying the resulting [Bitmap].
  *
  * Lookup order: memory LRU → disk → network decode. On a miss after decode, the
  * frame is written to both tiers. The disk store is bounded ([DISK_CACHE_BYTES])
@@ -58,6 +64,11 @@ class PreviewFrameEngine(
 ) {
     private val bitmapCache: LruCache<Int, Bitmap> = object : LruCache<Int, Bitmap>(CACHE_BYTES) {
         override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount
+    }
+
+    /** Scrub-preview frames: keyed by event number + keyframe bucket (plan.md FU-1). */
+    private val scrubCache: LruCache<Long, Bitmap> = object : LruCache<Long, Bitmap>(CACHE_BYTES) {
+        override fun sizeOf(key: Long, value: Bitmap): Int = value.byteCount
     }
 
     /**
@@ -101,6 +112,7 @@ class PreviewFrameEngine(
                 url = config.renditionUrl(eventNumber, tier),
                 width = width,
                 height = height,
+                positionMs = null,
             )
             if (frame != null) {
                 bitmapCache.put(eventNumber, frame)
@@ -111,7 +123,60 @@ class PreviewFrameEngine(
         return null
     }
 
-    private suspend fun captureFrame(url: String, width: Int, height: Int): Bitmap? {
+    /** Cached scrub-preview frame for [eventNumber] at [positionMs], or null. */
+    fun cachedScrubBitmap(eventNumber: Int, positionMs: Long): Bitmap? =
+        scrubCache.get(scrubCacheKey(eventNumber, positionMs))
+
+    /**
+     * Extract a scrub-preview frame at [positionMs] on the `_160p` rendition
+     * (falling back to `_360p` then base). The position is snapped to the nearest
+     * ~2 s keyframe (`SeekParameters.CLOSEST_SYNC`) and the cache key is bucketed
+     * to match, so repeated scrubs over the same span reuse one frame (plan.md
+     * Scrutiny #1 + FU-1). Cost per unique stop ≈ 65 KB.
+     */
+    suspend fun requestScrubFrame(
+        eventNumber: Int,
+        positionMs: Long,
+        width: Int,
+        height: Int,
+    ): Bitmap? {
+        val cacheKey = scrubCacheKey(eventNumber, positionMs)
+        scrubCache.get(cacheKey)?.let { return it }
+
+        val tiers = listOf(RenditionTier.P160, RenditionTier.P360, RenditionTier.P720)
+        for (tier in tiers) {
+            val frame = captureFrame(
+                url = config.renditionUrl(eventNumber, tier),
+                width = width,
+                height = height,
+                positionMs = bucketPosition(positionMs),
+            )
+            if (frame != null) {
+                scrubCache.put(cacheKey, frame)
+                return frame
+            }
+        }
+        return null
+    }
+
+    /** Snaps [positionMs] to the nearest keyframe boundary ([KEYFRAME_GRANULARITY_MS]). */
+    private fun bucketPosition(positionMs: Long): Long {
+        val granularity = KEYFRAME_GRANULARITY_MS
+        return (positionMs / granularity) * granularity
+    }
+
+    /** Packs event number + bucketed position into one cache key. */
+    private fun scrubCacheKey(eventNumber: Int, positionMs: Long): Long {
+        val bucket = bucketPosition(positionMs)
+        return (eventNumber.toLong() shl EVENT_SHIFT) or (bucket and POSITION_MASK)
+    }
+
+    private suspend fun captureFrame(
+        url: String,
+        width: Int,
+        height: Int,
+        positionMs: Long?,
+    ): Bitmap? {
         val reader = ImageReaderCapture(width.coerceAtLeast(2), height.coerceAtLeast(2))
         val player = ExoPlayer.Builder(context)
             .setTrackSelector(
@@ -127,6 +192,9 @@ class PreviewFrameEngine(
             .apply {
                 setVideoSurface(reader.surface)
                 volume = 0f
+                // CLOSEST_SYNC gives keyframe-accurate seeking (~2 s here); for
+                // the poster path (10%) the difference is invisible at tile size.
+                setSeekParameters(SeekParameters.CLOSEST_SYNC)
                 setMediaItem(
                     MediaItem.Builder()
                         .setUri(url)
@@ -138,16 +206,28 @@ class PreviewFrameEngine(
             }
 
         return try {
-            // Wait until the player knows the duration, then seek ~10% in.
             val frame: Bitmap? = withTimeoutOrNull(EXTRACT_TIMEOUT_MS) {
-                while (player.duration == C.TIME_UNSET || player.duration <= 0L) {
-                    if (player.playbackState == Player.STATE_ENDED ||
-                        player.playbackState == Player.STATE_IDLE
-                    ) return@withTimeoutOrNull null
-                    delay(SEEK_POLL_MS)
+                if (positionMs == null) {
+                    // Poster path: wait until the player knows the duration, then
+                    // seek ~10% in.
+                    while (player.duration == C.TIME_UNSET || player.duration <= 0L) {
+                        if (player.playbackState == Player.STATE_ENDED ||
+                            player.playbackState == Player.STATE_IDLE
+                        ) return@withTimeoutOrNull null
+                        delay(SEEK_POLL_MS)
+                    }
+                    player.seekTo((player.duration * SEEK_FRACTION).toLong())
+                } else {
+                    // Scrub path: wait until prepared, then seek to the requested
+                    // position (snapped to the nearest sync point above).
+                    while (player.playbackState == Player.STATE_IDLE ||
+                        player.playbackState == Player.STATE_BUFFERING
+                    ) {
+                        if (player.playbackState == Player.STATE_ENDED) return@withTimeoutOrNull null
+                        delay(SEEK_POLL_MS)
+                    }
+                    player.seekTo(positionMs)
                 }
-                val target = (player.duration * SEEK_FRACTION).toLong()
-                player.seekTo(target)
                 // Wait for the seek to land a rendered frame.
                 reader.awaitFrame()
             }
@@ -173,16 +253,20 @@ class PreviewFrameEngine(
         if (bitmapCache.size() > keep) {
             bitmapCache.trimToSize(keep)
         }
+        // Scrub frames are ephemeral and bulkier under active scrubbing — trim them
+        // more aggressively (keep half) since they're cheap to re-extract.
+        scrubCache.trimToSize(keep / 2)
     }
 
     /**
-     * Releases both tiers. The memory LRU is cleared immediately; the disk store
-     * is purged asynchronously (fire-and-forget — purge does not block tile
-     * rendering, and [release] is called from a composable disposal where
-     * blocking would be wrong).
+     * Releases all tiers. The memory LRU + scrub caches are cleared immediately;
+     * the disk store is purged asynchronously (fire-and-forget — purge does not
+     * block tile rendering, and [release] is called from a composable disposal
+     * where blocking would be wrong).
      */
     fun release() {
         bitmapCache.evictAll()
+        scrubCache.evictAll()
         diskCache.purge()
     }
 
@@ -212,6 +296,11 @@ class PreviewFrameEngine(
 
         /** Disk cache cap: ~50 MB ≈ hundreds of JPEG thumbnails. */
         private const val DISK_CACHE_BYTES = 50L * 1024 * 1024
+
+        /** Scrub-preview keyframe granularity: positions bucket to ~2 s (this server's GOP). */
+        internal const val KEYFRAME_GRANULARITY_MS = 2_000L
+        private const val EVENT_SHIFT = 40
+        private const val POSITION_MASK = (1L shl EVENT_SHIFT) - 1L
     }
 }
 
