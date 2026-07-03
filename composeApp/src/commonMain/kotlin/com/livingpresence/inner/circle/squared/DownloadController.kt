@@ -15,6 +15,9 @@ data class EventDownloadState(
 
 enum class DownloadStatus { QUEUED, DOWNLOADING, COMPLETED, FAILED, REMOVING, NOT_DOWNLOADED }
 
+/** User-selectable download quality. ~220 MB/h at 360p vs ~450 MB/h at 720p. */
+enum class DownloadQuality { P720, P360, P160, AUDIO }
+
 /**
  * Platform abstraction over offline downloads. Android backs this with the
  * `DownloadCenter` (DownloadService + WorkManager + SimpleCache); wasmJs is a
@@ -27,8 +30,8 @@ interface DownloadController {
     /** A map of event number → download state, kept current. */
     val states: StateFlow<Map<Int, EventDownloadState>>
 
-    /** Enqueue a download for [event]. No-op for live events. */
-    fun enqueue(event: EventInfo)
+    /** Enqueue a download for [event] at [tier] (default 360p for size). No-op for live events. */
+    fun enqueue(event: EventInfo, tier: DownloadQuality = DownloadQuality.P360)
 
     /** Remove a downloaded event. */
     fun remove(eventNumber: Int)

@@ -39,6 +39,13 @@ jobs:
       - name: Build Android debug app
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: composeApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+
   wasm:
     name: Wasm build
     runs-on: ubuntu-latest
@@ -57,8 +64,8 @@ jobs:
       - name: Build Wasm distribution
         run: ./gradlew --no-daemon wasmJsBrowserDistribution
 
-  mediakit-tests:
-    name: :mediakit unit tests
+  unit-tests:
+    name: Unit tests + coverage + API check
     runs-on: ubuntu-latest
 
     steps:
@@ -72,13 +79,63 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Run :mediakit common tests
-        run: ./gradlew --no-daemon :mediakit:jvmTest
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Upload test report
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      # :mediakit common tests (pure-Kotlin core) + :composeApp Robolectric unit tests.
+      - name: Run unit tests
+        run: ./gradlew --no-daemon :mediakit:test :composeApp:testDebugUnitTest
+
+      # Binary-compatibility: :mediakit's public API must match the checked-in snapshot.
+      - name: Validate SDK public API
+        run: ./gradlew --no-daemon :mediakit:apiCheck
+
+      # Kover coverage report (informational; a gate can be added once a baseline is set).
+      - name: Generate coverage report
+        run: ./gradlew --no-daemon koverXmlReport
+
+      - name: Upload test + coverage reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mediakit-test-report
-          path: mediakit/build/reports/tests/
+          name: reports
+          path: |
+            composeApp/build/reports/tests/
+            mediakit/build/reports/tests/
+            build/reports/kover/
           if-no-files-found: ignore
+
+  docs:
+    name: Dokka API docs
+    runs-on: ubuntu-latest
+    # Publish the :mediakit SDK docs to GitHub Pages on main; just build them on PRs.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Generate Dokka HTML
+        run: ./gradlew --no-daemon :mediakit:dokkaHtml
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: mediakit/build/dokka/html
+          destination_dir: mediakit-api

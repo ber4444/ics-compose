@@ -10,6 +10,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 interface PipController {
     fun updateVideoSize(width: Int, height: Int)
     fun setPlaying(playing: Boolean)
+    /** Report the video's on-screen bounds (for the PiP source-rect hint). */
+    fun updateSourceBounds(left: Int, top: Int, right: Int, bottom: Int)
 }
 
 val LocalPipController = staticCompositionLocalOf<PipController?> { null }

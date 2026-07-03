@@ -13,13 +13,13 @@ import io.ktor.client.HttpClient
  * extraction via playlist inspection) lives in [EventCatalog]. This wrapper
  * keeps the app's [MainViewModel] decoupled from the SDK's HTTP client wiring.
  */
-class VideoRepository(
+open class VideoRepository(
     httpClient: HttpClient,
     private val catalog: EventCatalog = EventCatalog(httpClient, MediaKitConfig.Default),
 ) {
     /** The full probed event list (event number, isLive, duration). */
-    suspend fun loadEvents(): List<EventInfo> = catalog.loadEvents()
+    open suspend fun loadEvents(): List<EventInfo> = catalog.loadEvents()
 
     /** Just the event numbers, for any call site that still needs them. */
-    suspend fun getAvailableVideos(): List<Int> = loadEvents().map { it.eventNumber }
+    open suspend fun getAvailableVideos(): List<Int> = loadEvents().map { it.eventNumber }
 }

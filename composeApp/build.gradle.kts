@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.dokka)
+    alias(libs.plugins.kover)
 }
 
 kotlin {
@@ -56,6 +58,17 @@ kotlin {
         wasmJsMain.dependencies {
             implementation(libs.ktor.client.js)
         }
+        // Robolectric unit tests for Android player/resize logic.
+        val androidUnitTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.media3.test.utils.robolectric)
+                implementation(libs.kotlinx.coroutines.test)
+                @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+                implementation(compose.uiTest)
+                implementation(compose.uiTooling)
+            }
+        }
     }
 }
 
@@ -72,6 +85,17 @@ android {
         targetSdk = 36
         versionCode = 7009
         versionName = "8.0.7"
+
+        // Login-gate password, sourced from a gradle/local property so it's not
+        // in source. Falls back to "SECRET" so dev + CI builds without the
+        // property still work.
+        val eventsPassword = (project.findProperty("icsEventsPassword") as String?)
+            ?: "SECRET"
+        buildConfigField("String", "EVENTS_PASSWORD", "\"$eventsPassword\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     packaging {
@@ -93,6 +117,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 }
 

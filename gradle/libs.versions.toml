@@ -15,6 +15,9 @@ ktor = "3.4.2"
 media3 = "1.10.0"
 androidx-work = "2.10.0"
 kotlinx-serialization = "1.8.0"
+dokka = "1.9.20"
+kover = "0.9.1"
+binary-compatibility-validator = "0.16.3"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -49,6 +52,7 @@ media3-exoplayer-workmanager = { module = "androidx.media3:media3-exoplayer-work
 media3-datasource = { module = "androidx.media3:media3-datasource", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
+media3-test-utils-robolectric = { module = "androidx.media3:media3-test-utils-robolectric", version.ref = "media3" }
 media3-ui-compose-material3 = { module = "androidx.media3:media3-ui-compose-material3", version.ref = "media3" }
 
 [plugins]
@@ -59,3 +63,6 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binary-compatibility-validator" }

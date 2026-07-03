@@ -134,7 +134,7 @@ private fun rememberMainViewModel(): MainViewModel {
         viewModelStoreOwner = owner,
         factory = viewModelFactory {
             initializer {
-                MainViewModel(videoRepository)
+                MainViewModel(videoRepository, eventsPassword())
             }
         },
     )

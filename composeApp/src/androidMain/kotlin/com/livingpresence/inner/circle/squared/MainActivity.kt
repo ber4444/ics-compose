@@ -20,6 +20,9 @@ class MainActivity : ComponentActivity() {
     /** The aspect ratio of the video currently playing, for PiP sizing. */
     private val pipAspectRatio = AtomicReference<Rational?>(null)
 
+    /** The video's on-screen bounds, for the PiP source-rect hint (smooth transition). */
+    internal val pipSourceRect = AtomicReference<android.graphics.Rect?>(null)
+
     /** Whether the user is actively playing video (gates auto-PiP on leave). */
     private val isPlayingVideo = AtomicReference(false)
 
@@ -28,8 +31,14 @@ class MainActivity : ComponentActivity() {
 
     private val trimCallback = object : ComponentCallbacks2 {
         override fun onConfigurationChanged(newConfig: Configuration) {}
-        override fun onLowMemory() = MemoryGovernor.onTrim(ComponentCallbacks2.TRIM_MEMORY_COMPLETE, frameEngineRef.get())
-        override fun onTrimMemory(level: Int) = MemoryGovernor.onTrim(level, frameEngineRef.get())
+        override fun onLowMemory() = MemoryGovernor.onTrim(
+            ComponentCallbacks2.TRIM_MEMORY_COMPLETE,
+            frameEngineRef.get()?.asTrimTarget(),
+        )
+        override fun onTrimMemory(level: Int) = MemoryGovernor.onTrim(
+            level,
+            frameEngineRef.get()?.asTrimTarget(),
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +57,9 @@ class MainActivity : ComponentActivity() {
                 override fun updateVideoSize(width: Int, height: Int) =
                     updatePipAspectRatio(width, height)
                 override fun setPlaying(playing: Boolean) = setPlayingVideo(playing)
+                override fun updateSourceBounds(left: Int, top: Int, right: Int, bottom: Int) {
+                    pipSourceRect.set(android.graphics.Rect(left, top, right, bottom))
+                }
             }
             CompositionLocalProvider(
                 LocalPreviewFrameEngine provides previewFrameEngine,
@@ -99,6 +111,13 @@ class MainActivity : ComponentActivity() {
         pipAspectRatio.get()?.let { aspectRatio ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 params.setAspectRatio(aspectRatio)
+            }
+        }
+        // Source-rect hint: tells the platform the exact on-screen video bounds so
+        // the PiP enter animation is seamless (no crop/flash from mismatched rects).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipSourceRect.get()?.let { sourceRect ->
+                runCatching { params.setSourceRectHint(sourceRect) }
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

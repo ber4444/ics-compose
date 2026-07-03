@@ -1,0 +1,157 @@
+public final class com/livingpresence/mediakit/EventCatalog {
+	public static final field Companion Lcom/livingpresence/mediakit/EventCatalog$Companion;
+	public static final field DEFAULT_MAX_CONCURRENCY I
+	public fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;I)V
+	public synthetic fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun loadEvents (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun probeEvent (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/livingpresence/mediakit/EventCatalog$Companion {
+}
+
+public final class com/livingpresence/mediakit/EventInfo {
+	public fun <init> (IZJ)V
+	public final fun component1 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()J
+	public final fun copy (IZJ)Lcom/livingpresence/mediakit/EventInfo;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/EventInfo;IZJILjava/lang/Object;)Lcom/livingpresence/mediakit/EventInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationMs ()J
+	public final fun getEventNumber ()I
+	public fun hashCode ()I
+	public final fun isLive ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/LadderResolver {
+	public fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;)V
+	public synthetic fun <init> (Lio/ktor/client/HttpClient;Lcom/livingpresence/mediakit/MediaKitConfig;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun probeRenditions (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resolve (ILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/livingpresence/mediakit/LadderSynthesizer {
+	public static final field INSTANCE Lcom/livingpresence/mediakit/LadderSynthesizer;
+	public final fun synthesize (Ljava/util/List;)Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/MediaKitConfig {
+	public static final field Companion Lcom/livingpresence/mediakit/MediaKitConfig$Companion;
+	public static final field DEFAULT_HOST Ljava/lang/String;
+	public static final field DEFAULT_MAX_EVENT_NUMBER I
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun copy (Ljava/lang/String;I)Lcom/livingpresence/mediakit/MediaKitConfig;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/MediaKitConfig;Ljava/lang/String;IILjava/lang/Object;)Lcom/livingpresence/mediakit/MediaKitConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun eventUrl (I)Ljava/lang/String;
+	public final fun getBaseStreamUrl ()Ljava/lang/String;
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getMaxEventNumber ()I
+	public fun hashCode ()I
+	public final fun renditionUrl (ILcom/livingpresence/mediakit/RenditionTier;)Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/MediaKitConfig$Companion {
+	public final fun getDefault ()Lcom/livingpresence/mediakit/MediaKitConfig;
+}
+
+public final class com/livingpresence/mediakit/PlaylistInspector {
+	public static final field INSTANCE Lcom/livingpresence/mediakit/PlaylistInspector;
+	public final fun parseMaster (Ljava/lang/String;)Ljava/util/List;
+	public final fun parseMediaPlaylist (Ljava/lang/String;)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
+}
+
+public final class com/livingpresence/mediakit/PlaylistInspector$MediaPlaylist {
+	public fun <init> (ZDII)V
+	public final fun component1 ()Z
+	public final fun component2 ()D
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun copy (ZDII)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;ZDIIILjava/lang/Object;)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationSeconds ()D
+	public final fun getSegmentCount ()I
+	public final fun getTargetDurationSeconds ()I
+	public fun hashCode ()I
+	public final fun isLive ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/PlaylistInspector$Variant {
+	public fun <init> (Ljava/lang/String;ILjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Z)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/Double;
+	public final fun component7 ()Z
+	public final fun copy (Ljava/lang/String;ILjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;Z)Lcom/livingpresence/mediakit/PlaylistInspector$Variant;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/PlaylistInspector$Variant;Ljava/lang/String;ILjava/lang/Integer;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Double;ZILjava/lang/Object;)Lcom/livingpresence/mediakit/PlaylistInspector$Variant;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAverageBandwidthBitsPerSecond ()Ljava/lang/Integer;
+	public final fun getBandwidthBitsPerSecond ()I
+	public final fun getCodecs ()Ljava/lang/String;
+	public final fun getFrameRate ()Ljava/lang/Double;
+	public final fun getResolution ()Ljava/lang/String;
+	public final fun getUri ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isIFrameOnly ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/ProbedRendition {
+	public fun <init> (Lcom/livingpresence/mediakit/RenditionTier;IIILjava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/livingpresence/mediakit/RenditionTier;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Lcom/livingpresence/mediakit/RenditionTier;IIILjava/lang/String;Ljava/lang/String;)Lcom/livingpresence/mediakit/ProbedRendition;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/ProbedRendition;Lcom/livingpresence/mediakit/RenditionTier;IIILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/livingpresence/mediakit/ProbedRendition;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBandwidthBitsPerSecond ()I
+	public final fun getChunklistUri ()Ljava/lang/String;
+	public final fun getCodecs ()Ljava/lang/String;
+	public final fun getHeight ()I
+	public final fun getResolutionAttribute ()Ljava/lang/String;
+	public final fun getTier ()Lcom/livingpresence/mediakit/RenditionTier;
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public final fun isAudioOnly ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/livingpresence/mediakit/RenditionTier : java/lang/Enum {
+	public static final field AUDIO Lcom/livingpresence/mediakit/RenditionTier;
+	public static final field P160 Lcom/livingpresence/mediakit/RenditionTier;
+	public static final field P360 Lcom/livingpresence/mediakit/RenditionTier;
+	public static final field P720 Lcom/livingpresence/mediakit/RenditionTier;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getUrlSuffix ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lcom/livingpresence/mediakit/RenditionTier;
+	public static fun values ()[Lcom/livingpresence/mediakit/RenditionTier;
+}
+
+public final class com/livingpresence/mediakit/ResolvedLadder {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/util/List;)Lcom/livingpresence/mediakit/ResolvedLadder;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/ResolvedLadder;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lcom/livingpresence/mediakit/ResolvedLadder;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMasterPlaylistText ()Ljava/lang/String;
+	public final fun getRenditions ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+

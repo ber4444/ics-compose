@@ -7,6 +7,12 @@ import io.ktor.client.HttpClient
 
 expect fun createHttpClient(): HttpClient
 
+/**
+ * The login-gate password, sourced per-platform (Android: BuildConfig from a
+ * gradle property; wasmJs: a default) so it isn't in common source.
+ */
+expect fun eventsPassword(): String
+
 @Composable
 expect fun PlatformPlayerScreen(
     url: String,

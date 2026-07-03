@@ -4,6 +4,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.dokka)
+    alias(libs.plugins.kover)
+    // SDK API-surface tracking: `apiCheck` validates the public API against
+    // mediakit/api/mediakit.api, so accidental binary-breaking changes fail the build.
+    alias(libs.plugins.binary.compatibility.validator)
 }
 
 kotlin {

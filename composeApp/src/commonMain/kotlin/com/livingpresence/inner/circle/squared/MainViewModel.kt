@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-private const val LIVE_EVENTS_PASSWORD = "SECRET"
 private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
 data class MainUiState(
@@ -18,16 +17,20 @@ data class MainUiState(
     val availableEvents: List<EventInfo> = emptyList(),
     val isLoadingVideos: Boolean = false,
     val videoLoadError: String? = null,
+    /** The expected password, injected per-platform (BuildConfig/gradle property). */
+    val expectedPassword: String = "",
 ) {
     val isLiveEventsEnabled: Boolean
-        get() = password == LIVE_EVENTS_PASSWORD
+        get() = password.isNotEmpty() && password == expectedPassword
 }
 
 class MainViewModel(
     private val videoRepository: VideoRepository,
+    /** The login-gate password, injected per-platform so it isn't in common source. */
+    expectedPassword: String,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(MainUiState())
+    private val _uiState = MutableStateFlow(MainUiState(expectedPassword = expectedPassword))
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     fun onPasswordChanged(password: String) {

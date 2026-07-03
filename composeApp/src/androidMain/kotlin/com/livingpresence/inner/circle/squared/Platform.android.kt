@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
@@ -56,6 +58,8 @@ private const val CONTROLS_AUTO_HIDE_MS = 3_000L
 private const val LIVE_EDGE_THRESHOLD_MS = 3_000L
 
 actual fun createHttpClient(): HttpClient = HttpClient()
+
+actual fun eventsPassword(): String = com.livingpresence.inner.circle.squared.BuildConfig.EVENTS_PASSWORD
 
 @Composable
 actual fun PlatformPlayerScreen(
@@ -197,7 +201,22 @@ private fun ExoPlayerScreen(
                     ) { showVideoControls = !showVideoControls },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(modifier = surfaceModifier) {
+                Box(
+                    modifier = surfaceModifier.onGloballyPositioned { coords ->
+                        // Report the video's on-screen bounds for the PiP source-rect hint.
+                        val pos = coords.positionInWindow()
+                        val w = coords.size.width
+                        val h = coords.size.height
+                        if (w > 0 && h > 0) {
+                            pipController?.updateSourceBounds(
+                                left = pos.x.toInt(),
+                                top = pos.y.toInt(),
+                                right = (pos.x + w).toInt(),
+                                bottom = (pos.y + h).toInt(),
+                            )
+                        }
+                    },
+                ) {
                     PlayerSurface(
                         player = player,
                         surfaceType = SURFACE_TYPE_TEXTURE_VIEW,

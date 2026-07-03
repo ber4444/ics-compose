@@ -1,32 +1,121 @@
-## About
+# Inner Circle Squared — Media Playback Showcase
 
-This project is a Compose Multiplatform application for the Inner Circle Squared community project.
+A Compose Multiplatform (Android + wasmJs) media-playback application built as a
+portfolio demonstration of **SDK development and video-playback solutions with
+modern Android media frameworks (Media3/ExoPlayer)**, including player-based UIs
+and handling horizontal **and** vertical video.
 
-## Building and running
+It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
+*unadvertised* sibling renditions into a genuine client-side ABR ladder.
 
-### Android
+> 📐 The full design — ground-truth server measurements, scrutiny of every
+> proposed idea, and a phase-by-phase plan — lives in [`plan.md`](./plan.md).
+> Deferred follow-up PRs are tracked at the bottom of that file.
 
-```bash
-./gradlew assembleDebug installDebug
+## Status
+
+| Phase | What landed |
+|-------|-------------|
+| 0–1 | Audio-only plumbing removed; `:mediakit` KMP SDK extracted (`explicitApi`), pure-Kotlin HLS parsing + ladder synthesis, 27 common tests |
+| 2 | VideosDialog → thumbnail feed (`PreviewFrameEngine`: one shared decoder, `_160p` frame extraction, LRU cache) |
+| 3 | Player upgrades: real ABR via ladder synthesis, fit/fill/zoom resize matrix for horizontal **& vertical** video, auto-hide/buffering/error UX, stats overlay + quality menu |
+| 4 | `PlaybackService` (MediaSession), PiP (aspect-clamped for vertical video), background-audio-to-audio-only-tier, `MemoryGovernor` |
+| 5 | Offline downloads (`DownloadService` + `WorkManagerScheduler` + `SimpleCache` shared with playback), wifi-only, bounded events only |
+| 6 | Test harness (Robolectric + unit tests), Dokka + binary-compatibility-validator + Kover, this showcase README |
+
+## Architecture
+
+```
+:composeApp        — app UI (feed, login, player), navigation, DI wiring
+:mediakit          — KMP playback SDK (the showcase artifact)
+  commonMain       — PlaylistInspector (pure-Kotlin HLS parser), LadderSynthesizer
+                     (multivariant playlist builder), LadderResolver (JIT rendition
+                     probing), EventCatalog (parallel event probing), MediaKitConfig,
+                     EventInfo/ProbedRendition/RenditionTier models
+  androidMain      — ExoPlayer (in PlaybackService), PreviewFrameEngine,
+                     DownloadCenter, MemoryGovernor, LadderMediaSourceBuilder
+  wasmJsMain       — thin web target (poster tiles + open-stream)
 ```
 
-### Web (Wasm)
-
-```bash
-./gradlew wasmJsBrowserDevelopmentRun
-```
-
-To serve the production build from a static server, use:
-
-```bash
-./gradlew wasmJsBrowserDistribution
-```
-
-Then serve the files from `composeApp/build/dist/wasmJs/productionExecutable/wasmJsBrowserDistribution`.
-
-## Notes
+The playback engine lives in `:mediakit`, **owned by a `MediaSessionService`**,
+not by a composable — it survives config changes, enables background audio/PiP,
+and is the SDK artifact.
 
 - Shared UI and app state live in `composeApp/src/commonMain`
 - Shared image resources live in `composeApp/src/commonMain/composeResources`
 - Android entry points and playback integration live in `composeApp/src/androidMain`
 - Web entry points live in `composeApp/src/wasmJsMain`
+
+## The engineering decisions (interview material)
+
+These are the calls a media reviewer would expect to see defended. Full reasoning
+in [`plan.md`](./plan.md) §"Scrutiny".
+
+- **Client-side ladder synthesis** — the server's master advertises only one
+  720p variant, but four segment-aligned siblings exist (`_360p`/`_160p`/`_aac`).
+  `LadderSynthesizer` probes them just-in-time (chunklist `w`-tokens rotate) and
+  emits a spec-correct multivariant playlist fed via a `data:` URI. The result is
+  **genuine ABR on the production streams** — the single highest-leverage decision.
+
+- **One shared frame engine, not N per-tile players** — `PreviewFrameEngine` is a
+  single muted, video-only ExoPlayer extracting `_160p` frames (~65 KB each) into
+  an LRU cache. This is the legitimate version of "frame recycling" — MediaCodec
+  owns the decoded buffers; we own one extractor.
+
+- **Live vs VOD by playlist inspection** — `#EXT-X-ENDLIST` presence drives both
+  the LIVE badge and download eligibility. Truly-live events (no `ENDLIST`) get no
+  download affordance; bounded events download to disk.
+
+- **Background audio at the audio-only tier** — with muxed HLS, disabling the
+  video renderer stops decode but *not* download. Constraining track selection to
+  the ladder's `_aac` tier (~51 kbps vs ~1 Mbps) is real savings while the
+  `MediaSession` keeps audio going.
+
+- **PiP aspect ratio clamped for vertical video** — `PictureInPictureParams` uses
+  `videoSize`, clamped to the platform's 1:2.39–2.39:1 range so 9:16 content
+  isn't rejected.
+
+- **Downloads target a concrete rendition** — not the `data:` ladder — so cache
+  keys stay stable and stored content sidesteps chunklist rotation.
+
+## Building
+
+### Android
+```bash
+./gradlew assembleDebug            # debug APK → composeApp/build/outputs/apk/debug/
+./gradlew installDebug             # install on a connected device
+```
+
+### Web (Wasm)
+```bash
+./gradlew wasmJsBrowserDevelopmentRun
+```
+
+To serve the production build from a static server:
+```bash
+./gradlew wasmJsBrowserDistribution
+# serve composeApp/build/dist/wasmJs/productionExecutable/wasmJsBrowserDistribution
+```
+
+## Tests & SDK discipline
+```bash
+./gradlew :mediakit:test                # the pure-Kotlin SDK core (JVM)
+./gradlew :composeApp:testDebugUnitTest # Robolectric unit tests (resize matrix,
+                                        # MemoryGovernor tiers, MainViewModel)
+./gradlew :mediakit:apiCheck            # binary-compatibility validation
+./gradlew :mediakit:dokkaHtml           # API docs → mediakit/build/dokka/html
+./gradlew koverXmlReport                # coverage report
+```
+
+The `:mediakit` public API surface is tracked under `mediakit/api/` — accidental
+binary-breaking changes fail CI. Dokka API docs are published to GitHub Pages on
+`main`.
+
+## Configuration
+
+The login-gate password is injected via a gradle property (`icsEventPassword`),
+falling back to `SECRET` for dev/CI — it is not in source:
+```
+# gradle.properties or ~/.gradle/gradle.properties
+icsEventPassword=your-password
+```
