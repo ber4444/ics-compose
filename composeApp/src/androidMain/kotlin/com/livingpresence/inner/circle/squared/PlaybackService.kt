@@ -28,6 +28,22 @@ class PlaybackService : MediaSessionService() {
 
     private var session: MediaSession? = null
 
+    /**
+     * Builds a [androidx.media3.datasource.DataSource.Factory] that prefers the
+     * download [SimpleCache], then falls back to HTTP, with `data:` scheme support
+     * for the synthesized-ladder multivariant playlist. Downloaded events thus
+     * play from disk (airplane-mode playback is the acceptance test).
+     */
+    @UnstableApi
+    private fun playbackDataSourceFactory(): androidx.media3.datasource.DataSource.Factory {
+        val upstream = DefaultDataSource.Factory(
+            this,
+            DataSource.Factory { DataSchemeDataSource() },
+        )
+        return runCatching { DownloadCenter.get(this).cacheDataSourceFactory() }
+            .getOrElse { upstream }
+    }
+
     @UnstableApi
     override fun onCreate() {
         super.onCreate()
@@ -47,10 +63,11 @@ class PlaybackService : MediaSessionService() {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(
-                        DefaultDataSource.Factory(
-                            this,
-                            DataSource.Factory { DataSchemeDataSource() },
-                        ),
+                        // Prefer the download cache for playback (downloaded events
+                        // play from disk — airplane-mode is the acceptance test),
+                        // falling back to HTTP, with data: scheme support for the
+                        // synthesized-ladder multivariant playlist.
+                        playbackDataSourceFactory(),
                     ),
             )
             .build()
