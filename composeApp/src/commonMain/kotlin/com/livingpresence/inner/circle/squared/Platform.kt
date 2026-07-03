@@ -1,6 +1,7 @@
 package com.livingpresence.inner.circle.squared
 
 import androidx.compose.runtime.Composable
+import com.livingpresence.mediakit.MediaKitConfig
 import io.ktor.client.HttpClient
 
 expect fun createHttpClient(): HttpClient
@@ -11,5 +12,10 @@ expect fun PlatformPlayerScreen(
     onClose: () -> Unit,
 )
 
+/**
+ * The base (720p) playlist URL for [eventNumber]. Delegates to [MediaKitConfig]
+ * so the production host lives in one place (the `:mediakit` SDK) rather than
+ * being sprinkled through app code.
+ */
 fun getUrl(eventNumber: Int): String =
-    "https://65e54f30ec73c.streamlock.net:443/live/event$eventNumber/playlist.m3u8?DVR"
+    MediaKitConfig.Default.eventUrl(eventNumber)

@@ -56,3 +56,29 @@ jobs:
 
       - name: Build Wasm distribution
         run: ./gradlew --no-daemon wasmJsBrowserDistribution
+
+  mediakit-tests:
+    name: :mediakit unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Run :mediakit common tests
+        run: ./gradlew --no-daemon :mediakit:jvmTest
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mediakit-test-report
+          path: mediakit/build/reports/tests/
+          if-no-files-found: ignore

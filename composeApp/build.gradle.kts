@@ -37,6 +37,7 @@ kotlin {
             implementation(libs.navigation.compose)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
+            implementation(project(":mediakit"))
         }
         androidMain.dependencies {
             implementation(compose.preview)
