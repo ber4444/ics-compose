@@ -49,6 +49,23 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
 
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this)
+        // FU-5: viewport-aware ABR. Cap the highest decoded video to what the
+        // physical display can actually show, so the player never decodes a
+        // rendition larger than the screen (saves bandwidth + decode on the
+        // synthesized ladder and demo streams). `setViewportSizeToPhysicalDisplaySize`
+        // is the media3 1.10 Builder API that reads the display size from the
+        // service Context across all API levels (no manual WindowMetrics wiring).
+        // No-op when a master advertises a single variant ≤ display (this server's
+        // one-720p master), correct on multi-rung ladders. `orientationMayChange`
+        // keeps the constraint valid after rotation by taking the max orientation.
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .setViewportSizeToPhysicalDisplaySize(
+                    /* context = */ this,
+                    /* orientationMayChange = */ true,
+                )
+                .build(),
+        )
         val player = ExoPlayer.Builder(this)
             .setTrackSelector(trackSelector)
             .setLoadControl(MemoryGovernor.adaptiveLoadControl(this))
