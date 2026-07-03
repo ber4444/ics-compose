@@ -249,6 +249,9 @@ fun GalleryScreen(
     onPlayEvent: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
+    val downloadController = rememberDownloadController()
+    val downloadStates by downloadController.states.collectAsState()
+
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LiveEventsGallery(
             events = uiState.availableEvents,
@@ -257,6 +260,9 @@ fun GalleryScreen(
             onPlayEvent = onPlayEvent,
             onRetry = onRetry,
             modifier = Modifier.fillMaxSize(),
+            downloadStates = downloadStates,
+            onDownload = downloadController::enqueue,
+            onRemoveDownload = downloadController::remove,
         )
 
         TextButton(

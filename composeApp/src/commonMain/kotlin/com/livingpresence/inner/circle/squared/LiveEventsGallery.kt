@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,6 +48,10 @@ fun LiveEventsGallery(
     onPlayEvent: (Int) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Per-event download state; when non-null the tile shows a download affordance. */
+    downloadStates: Map<Int, EventDownloadState>? = null,
+    onDownload: ((EventInfo) -> Unit)? = null,
+    onRemoveDownload: ((Int) -> Unit)? = null,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -62,7 +67,13 @@ fun LiveEventsGallery(
             }
 
             events.isNotEmpty() -> {
-                EventFeed(events = events, onPlayEvent = onPlayEvent)
+                EventFeed(
+                    events = events,
+                    onPlayEvent = onPlayEvent,
+                    downloadStates = downloadStates,
+                    onDownload = onDownload,
+                    onRemoveDownload = onRemoveDownload,
+                )
             }
 
             else -> {
@@ -80,6 +91,9 @@ fun LiveEventsGallery(
 private fun EventFeed(
     events: List<EventInfo>,
     onPlayEvent: (Int) -> Unit,
+    downloadStates: Map<Int, EventDownloadState>?,
+    onDownload: ((EventInfo) -> Unit)?,
+    onRemoveDownload: ((Int) -> Unit)?,
 ) {
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
@@ -101,6 +115,9 @@ private fun EventFeed(
                     LiveEventTile(
                         event = event,
                         onPlayEvent = onPlayEvent,
+                        downloadState = downloadStates?.get(event.eventNumber),
+                        onDownload = onDownload,
+                        onRemoveDownload = onRemoveDownload,
                         modifier = Modifier.width(tileWidth),
                     )
                 }
@@ -120,6 +137,9 @@ private fun EventFeed(
                             LiveEventTile(
                                 event = event,
                                 onPlayEvent = onPlayEvent,
+                                downloadState = downloadStates?.get(event.eventNumber),
+                                onDownload = onDownload,
+                                onRemoveDownload = onRemoveDownload,
                                 modifier = Modifier.width(tileWidth),
                             )
                         }
@@ -141,13 +161,18 @@ private fun <T> chunkBalanced(items: List<T>, rows: Int): List<List<T>> {
 }
 
 /**
- * One event tile: thumbnail (platform-provided), title, LIVE badge or duration.
+ * One event tile: thumbnail (platform-provided), title, LIVE badge or duration,
+ * and a download affordance for bounded (non-live) events when a download
+ * controller is available.
  */
 @Composable
 private fun LiveEventTile(
     event: EventInfo,
     onPlayEvent: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    downloadState: EventDownloadState? = null,
+    onDownload: ((EventInfo) -> Unit)? = null,
+    onRemoveDownload: ((Int) -> Unit)? = null,
 ) {
     val tileShape = RoundedCornerShape(12.dp)
     Surface(
@@ -173,21 +198,68 @@ private fun LiveEventTile(
                     LiveBadge(modifier = Modifier.align(Alignment.TopStart).padding(6.dp))
                 }
             }
-            Column(
-                modifier = Modifier.padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Event ${event.eventNumber}",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (event.isLive) "Live now" else formatDuration(event.durationMs),
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (!event.isLive && onDownload != null) {
+                    DownloadAffordance(
+                        state = downloadState,
+                        onDownload = { onDownload(event) },
+                        onRemove = { onRemoveDownload?.invoke(event.eventNumber) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Download button reflecting state: not-downloaded (download), in-progress
+ * (percentage ring), completed (check / remove), failed (retry).
+ */
+@Composable
+private fun DownloadAffordance(
+    state: EventDownloadState?,
+    onDownload: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val status = state?.state ?: DownloadStatus.NOT_DOWNLOADED
+    when (status) {
+        DownloadStatus.COMPLETED -> {
+            TextButton(onClick = onRemove) {
+                Text("✓", color = Color(0xFFB9F6CA))
+            }
+        }
+        DownloadStatus.DOWNLOADING, DownloadStatus.QUEUED -> {
+            val percent = state?.percent ?: 0f
+            TextButton(onClick = onRemove) {
                 Text(
-                    text = "Event ${event.eventNumber}",
+                    "${percent.toInt()}%",
                     color = Color.White,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelSmall,
                 )
-                Text(
-                    text = if (event.isLive) "Live now" else formatDuration(event.durationMs),
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            }
+        }
+        DownloadStatus.FAILED, DownloadStatus.NOT_DOWNLOADED, DownloadStatus.REMOVING -> {
+            TextButton(onClick = onDownload) {
+                Text("⬇", color = Color.White)
             }
         }
     }
