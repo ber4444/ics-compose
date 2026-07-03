@@ -45,6 +45,7 @@ kotlin {
             implementation(libs.ktor.client.android)
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
+            implementation(libs.media3.datasource)
             implementation(libs.media3.ui.compose)
             implementation(libs.media3.ui.compose.material3)
             implementation(libs.splash.screen.support)
