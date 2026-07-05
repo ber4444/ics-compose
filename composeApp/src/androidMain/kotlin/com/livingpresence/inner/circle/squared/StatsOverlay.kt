@@ -17,8 +17,8 @@ import com.livingpresence.mediakit.ProbedRendition
 /**
  * Debug stats overlay showing the live adaptation state — the rendition the
  * player has selected, its height/bitrate, and the buffered position. Toggled
- * from the controls; in debug builds it makes the ABR ladder *visible* (a strong
- * interview artifact per the plan — the adaptation is observable, not just claimed).
+ * from the controls; in debug builds it makes the ABR ladder *visible* — the
+ * adaptation is observable, not just claimed.
  */
 @Composable
 internal fun StatsOverlay(

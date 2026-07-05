@@ -10,9 +10,6 @@ import androidx.media3.exoplayer.DefaultLoadControl
  * Memory governance for playback (plan.md Phase 4): adapts buffer sizing to the
  * device's RAM and reacts to [ComponentCallbacks2][android.content.ComponentCallbacks2]
  * trim levels by shedding decoder/cache memory in tiers.
- *
- * This trio (adaptive buffers, trim tiers, the shared extractor) is the honest
- * implementation of the brief's memory ideas.
  */
 internal object MemoryGovernor {
 
