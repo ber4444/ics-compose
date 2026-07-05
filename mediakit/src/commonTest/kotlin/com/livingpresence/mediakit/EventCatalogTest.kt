@@ -161,7 +161,7 @@ class EventCatalogTest {
             #EXTINF:2.002,
             media_w227929621_DVR_1.ts
         """.trimIndent()
-        val catalog = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
+        val (catalog, _) = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
             HttpStatusCode.OK to liveExcerpt
         }
 
@@ -185,7 +185,7 @@ class EventCatalogTest {
             media_w1679678732_DVR_1.ts
             #EXT-X-ENDLIST
         """.trimIndent()
-        val catalog = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
+        val (catalog, _) = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
             HttpStatusCode.OK to boundedExcerpt
         }
 
