@@ -19,6 +19,33 @@ kotlin {
         }
     }
 
+    // iOS targets (Phase 7): AVPlayer-backed playback in iosMain. Both ARM64
+    // device and simulator share one iosMain intermediate source set.
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64(),
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+        }
+        // AVPlayer Obj-C bridge. The Xcode 26.5 SDK + Kotlin/Native cinterop
+        // combo fails to merge AVPlayer's Obj-C category methods
+        // (play/pause/rate/seek/...) onto the generated AVPlayer class, so
+        // those calls are unresolvable from Kotlin. This small cinterop wraps
+        // them in a plain NSObject whose methods cinterop merges correctly.
+        // See native/avplayer/cinterop/AVPlayerBridge.h.
+        iosTarget.compilations.getByName("main").cinterops {
+            create("avplayer") {
+                defFile(project.file("native/avplayer/cinterop/avplayer.def"))
+                // The def's `headers =` resolves relative to this dir, but cinterop's
+                // clang invocation doesn't add it to the search path by default — pass
+                // it explicitly so AVPlayerBridge.h is found regardless of CWD.
+                compilerOpts("-I${project.file("native/avplayer/cinterop").absolutePath}")
+            }
+        }
+    }
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         outputModuleName.set("composeApp")
@@ -53,10 +80,14 @@ kotlin {
             implementation(libs.media3.ui.compose)
             implementation(libs.media3.ui.compose.material3)
             implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.vosk.android)
             implementation(libs.splash.screen.support)
         }
         wasmJsMain.dependencies {
             implementation(libs.ktor.client.js)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         // Robolectric unit tests for Android player/resize logic.
         val androidUnitTest by getting {

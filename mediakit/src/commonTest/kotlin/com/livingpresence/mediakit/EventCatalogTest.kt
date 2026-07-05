@@ -11,7 +11,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TestTimeSource
+import kotlin.time.TimeSource
 
 class EventCatalogTest {
 
@@ -25,10 +30,19 @@ class EventCatalogTest {
         return "#EXTM3U\n#EXT-X-TARGETDURATION:2\n$segments\n$endList".trimEnd() + "\n"
     }
 
+    /**
+     * Build a catalog backed by a counting mock so tests can assert cache hit /
+     * miss and retry behavior. Defaults to an infinite TTL so that the original
+     * tests (which call [EventCatalog.loadEvents] once) are unaffected.
+     */
     private fun catalog(
         config: MediaKitConfig = this.config,
-        responder: suspend (String) -> Pair<HttpStatusCode, String>,
-    ): EventCatalog {
+        timeSource: TimeSource = TimeSource.Monotonic,
+        cacheTtl: Duration = Duration.INFINITE,
+        maxProbeAttempts: Int = 2,
+        retryBackoff: Duration = Duration.ZERO,
+        responder: suspend (url: String) -> Pair<HttpStatusCode, String>,
+    ): Pair<EventCatalog, MockEngine> {
         val engine = MockEngine { request ->
             val (status, body) = responder(request.url.toString())
             respond(
@@ -38,12 +52,22 @@ class EventCatalogTest {
             )
         }
         val client = HttpClient(engine)
-        return EventCatalog(client, config)
+        val catalog = EventCatalog(
+            httpClient = client,
+            config = config,
+            cacheTtl = cacheTtl,
+            timeSource = timeSource,
+            maxProbeAttempts = maxProbeAttempts,
+            retryBackoff = retryBackoff,
+        )
+        return catalog to engine
     }
+
+    // ---- Existing behavior (must keep passing) ------------------------------
 
     @Test
     fun loadEvents_excludes404s() = runTest {
-        val catalog = catalog { url ->
+        val (catalog, _) = catalog { url ->
             when {
                 url.contains("event1") && url.contains("/playlist.m3u8") ->
                     HttpStatusCode.NotFound to "404"
@@ -63,7 +87,7 @@ class EventCatalogTest {
 
     @Test
     fun loadEvents_returnsLiveAndDurationFromPlaylist() = runTest {
-        val catalog = catalog { url ->
+        val (catalog, _) = catalog { url ->
             when {
                 url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = true)
                 url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(10, live = false)
@@ -85,7 +109,7 @@ class EventCatalogTest {
     @Test
     fun loadEvents_probesAllConfiguredEventsInParallel() = runTest {
         // All three exist → all three returned, newest first.
-        val catalog = catalog { url ->
+        val (catalog, _) = catalog { url ->
             when {
                 url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
                 url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
@@ -101,7 +125,7 @@ class EventCatalogTest {
 
     @Test
     fun loadEvents_returnsEmptyWhenAllMissing() = runTest {
-        val catalog = catalog { _ -> HttpStatusCode.NotFound to "404" }
+        val (catalog, _) = catalog { _ -> HttpStatusCode.NotFound to "404" }
 
         assertEquals(emptyList(), catalog.loadEvents())
     }
@@ -118,7 +142,7 @@ class EventCatalogTest {
 
     @Test
     fun probeEvent_returnsNullOn5xx() = runTest {
-        val catalog = catalog { _ -> HttpStatusCode.InternalServerError to "boom" }
+        val (catalog, _) = catalog { _ -> HttpStatusCode.InternalServerError to "boom" }
 
         assertNull(catalog.probeEvent(2))
     }
@@ -187,5 +211,278 @@ class EventCatalogTest {
         val catalog = EventCatalog(client, config)
 
         assertNull(catalog.probeEvent(1))
+    }
+
+    // ---- FU-3: TTL cache -----------------------------------------------------
+
+    @Test
+    fun loadEvents_returnsCacheWithinTtl_withoutReprobing() = runTest {
+        val (catalog, engine) = catalog(cacheTtl = 60.seconds) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        catalog.loadEvents()
+        val hitsAfterFirst = engine.requestHistory.size
+
+        catalog.loadEvents() // within TTL → served from cache, no new requests
+        catalog.loadEvents()
+
+        assertEquals(hitsAfterFirst, engine.requestHistory.size)
+    }
+
+    @Test
+    fun loadEvents_reprobesAfterTtlExpires() = runTest {
+        val clock = TestTimeSource()
+        val ttl = 60.seconds
+        val (catalog, engine) = catalog(timeSource = clock, cacheTtl = ttl) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        catalog.loadEvents()
+        val afterFirst = engine.requestHistory.size
+        assertEquals(3, afterFirst) // one probe per configured event
+
+        clock += (ttl - 1.seconds) // still fresh
+        catalog.loadEvents()
+        assertEquals(afterFirst, engine.requestHistory.size)
+
+        clock += 2.seconds // now past TTL
+        catalog.loadEvents()
+        assertEquals(afterFirst * 2, engine.requestHistory.size)
+    }
+
+    @Test
+    fun loadEvents_forceRefreshBypassesCache() = runTest {
+        val (catalog, engine) = catalog(cacheTtl = Duration.INFINITE) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        catalog.loadEvents()
+        val afterFirst = engine.requestHistory.size
+
+        catalog.loadEvents(forceRefresh = true) // bypasses the (infinite) TTL
+        assertEquals(afterFirst * 2, engine.requestHistory.size)
+    }
+
+    @Test
+    fun invalidate_dropsCacheSoNextLoadReprobes() = runTest {
+        val (catalog, engine) = catalog(cacheTtl = Duration.INFINITE) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        catalog.loadEvents()
+        catalog.loadEvents() // cached
+        val cached = engine.requestHistory.size
+        assertEquals(3, cached)
+
+        catalog.invalidate()
+        catalog.loadEvents() // re-probes after invalidation
+        assertEquals(cached * 2, engine.requestHistory.size)
+    }
+
+    @Test
+    fun loadEvents_cachedResultIsTheSameInstance() = runTest {
+        val (catalog, _) = catalog(cacheTtl = 60.seconds) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        val first = catalog.loadEvents()
+        val second = catalog.loadEvents() // within TTL
+
+        // Cache returns the same List reference (no copy/reprobe).
+        assertSame(first, second)
+    }
+
+    @Test
+    fun loadEvents_emptyResultIsCachedToo() = runTest {
+        val (catalog, engine) = catalog(cacheTtl = 60.seconds) { _ ->
+            HttpStatusCode.NotFound to "404"
+        }
+
+        catalog.loadEvents()
+        val afterFirst = engine.requestHistory.size
+        catalog.loadEvents() // empty list is still a valid cache entry
+
+        assertEquals(afterFirst, engine.requestHistory.size)
+    }
+
+    @Test
+    fun loadEvents_cacheTtlZeroAlwaysReprobes() = runTest {
+        val (catalog, engine) = catalog(cacheTtl = Duration.ZERO) { url ->
+            when {
+                url.contains("event1") -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                url.contains("event2") -> HttpStatusCode.OK to boundedChunklist(6, live = false)
+                url.contains("event3") -> HttpStatusCode.OK to boundedChunklist(8, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        catalog.loadEvents()
+        val afterFirst = engine.requestHistory.size
+        catalog.loadEvents() // TTL=0 → never cached
+
+        assertEquals(afterFirst * 2, engine.requestHistory.size)
+    }
+
+    // ---- FU-3: retry ---------------------------------------------------------
+
+    @Test
+    fun loadEvents_retriesTransient5xxThenSucceeds() = runTest {
+        // event1 returns 500 once, then 200. With retry it should appear.
+        val attempts = mutableMapOf<Int, Int>()
+        val (catalog, _) = catalog(
+            cacheTtl = Duration.INFINITE,
+            maxProbeAttempts = 3,
+            retryBackoff = Duration.ZERO,
+        ) { url ->
+            val eventNum = when {
+                url.contains("event1") -> 1
+                url.contains("event2") -> 2
+                url.contains("event3") -> 3
+                else -> 0
+            }
+            val n = attempts.getOrDefault(eventNum, 0)
+            attempts[eventNum] = n + 1
+            when {
+                eventNum == 1 && n == 0 ->
+                    HttpStatusCode.InternalServerError to "boom" // first attempt fails
+                eventNum != 0 ->
+                    HttpStatusCode.OK to boundedChunklist(4, live = false) // succeeds (incl. retry)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        val events = catalog.loadEvents().map { it.eventNumber }.toSet()
+
+        // event1 recovered after one transient 500 → still present.
+        assertEquals(setOf(1, 2, 3), events)
+        // event1 was hit twice (failed once, succeeded on retry).
+        assertEquals(2, attempts.getValue(1))
+    }
+
+    @Test
+    fun loadEvents_retriesTransportFailureThenSucceeds() = runTest {
+        val attempts = mutableMapOf<Int, Int>()
+        // Separate engine so we can throw on the first attempt for event2.
+        val engine = MockEngine { request ->
+            val url = request.url.toString()
+            val eventNum = when {
+                url.contains("event1") -> 1
+                url.contains("event2") -> 2
+                url.contains("event3") -> 3
+                else -> 0
+            }
+            val n = attempts.getOrDefault(eventNum, 0)
+            attempts[eventNum] = n + 1
+            when {
+                eventNum == 2 && n == 0 -> throw IllegalStateException("transient blip")
+                eventNum != 0 -> respond(
+                    content = boundedChunklist(4, live = false),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl"),
+                )
+                else -> respond(
+                    content = "404",
+                    status = HttpStatusCode.NotFound,
+                    headers = headersOf(HttpHeaders.ContentType, "text/plain"),
+                )
+            }
+        }
+        val catalog = EventCatalog(
+            httpClient = HttpClient(engine),
+            config = config,
+            cacheTtl = Duration.INFINITE,
+            maxProbeAttempts = 3,
+            retryBackoff = Duration.ZERO,
+        )
+
+        val events = catalog.loadEvents().map { it.eventNumber }.toSet()
+
+        assertEquals(setOf(1, 2, 3), events)
+        // event2 was hit twice (failed once, succeeded on retry).
+        assertEquals(2, attempts.getValue(2))
+    }
+
+    @Test
+    fun loadEvents_doesNotRetry4xxMissingEvent() = runTest {
+        val attempts = mutableMapOf<Int, Int>()
+        val (catalog, _) = catalog(
+            cacheTtl = Duration.INFINITE,
+            maxProbeAttempts = 3,
+            retryBackoff = Duration.ZERO,
+        ) { url ->
+            val eventNum = when {
+                url.contains("event1") -> 1
+                url.contains("event2") -> 2
+                url.contains("event3") -> 3
+                else -> 0
+            }
+            attempts[eventNum] = attempts.getOrDefault(eventNum, 0) + 1
+            when {
+                eventNum == 1 -> HttpStatusCode.NotFound to "404" // genuinely missing
+                eventNum != 0 -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        val events = catalog.loadEvents().map { it.eventNumber }
+
+        // event1 is excluded (404) and was probed exactly once — no retry.
+        assertEquals(listOf(3, 2), events)
+        assertEquals(1, attempts.getValue(1))
+    }
+
+    @Test
+    fun loadEvents_givesUpAfterMaxAttemptsOnPersistentTransient() = runTest {
+        val attempts = mutableMapOf<Int, Int>()
+        val (catalog, _) = catalog(
+            cacheTtl = Duration.INFINITE,
+            maxProbeAttempts = 2, // one try + one retry
+            retryBackoff = Duration.ZERO,
+        ) { url ->
+            val eventNum = when {
+                url.contains("event1") -> 1
+                url.contains("event2") -> 2
+                url.contains("event3") -> 3
+                else -> 0
+            }
+            attempts[eventNum] = attempts.getOrDefault(eventNum, 0) + 1
+            when {
+                eventNum == 2 -> HttpStatusCode.InternalServerError to "boom" // always fails
+                eventNum != 0 -> HttpStatusCode.OK to boundedChunklist(4, live = false)
+                else -> HttpStatusCode.NotFound to "404"
+            }
+        }
+
+        val events = catalog.loadEvents().map { it.eventNumber }
+
+        // event2 fails every attempt → excluded; probed exactly maxProbeAttempts times.
+        assertEquals(listOf(3, 1), events)
+        assertEquals(2, attempts.getValue(2))
     }
 }

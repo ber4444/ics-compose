@@ -30,6 +30,11 @@ kotlin {
         browser()
     }
 
+    // iOS targets (Phase 7): the SDK is pure commonMain Kotlin, so the targets
+    // exist purely to publish the API into the iosMain consumer of :composeApp.
+    iosArm64()
+    iosSimulatorArm64()
+
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)

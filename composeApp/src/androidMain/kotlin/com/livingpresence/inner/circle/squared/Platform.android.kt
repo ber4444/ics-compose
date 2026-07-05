@@ -1,6 +1,7 @@
 package com.livingpresence.inner.circle.squared
 
 import android.app.Activity
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -15,8 +16,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,16 +34,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
@@ -50,12 +64,42 @@ import com.livingpresence.mediakit.LadderResolver
 import com.livingpresence.mediakit.MediaKitConfig
 import com.livingpresence.mediakit.ProbedRendition
 import io.ktor.client.HttpClient
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
 
 private const val APP_TAG = "InnerCircleSquared"
 private const val CONTROLS_AUTO_HIDE_MS = 3_000L
 private const val LIVE_EDGE_THRESHOLD_MS = 3_000L
+
+/**
+ * What the service-owned player is currently asked to load. The production path
+ * resolves an event into a ladder-synthesized media-item URI; a demo source
+ * (plan.md FU-4, debug-only) is an arbitrary URL with no ladder synthesis.
+ */
+internal sealed interface PlaybackLoadRequest {
+    /** Stable identity so the load effect only re-runs when the source changes. */
+    val loadKey: String
+}
+
+/** The production event stream, resolved via [LadderMediaSourceBuilder]. */
+internal class ProductionSource(val resolvedMediaItemUri: String) : PlaybackLoadRequest {
+    override val loadKey: String = "prod:$resolvedMediaItemUri"
+}
+
+/** A debug demo source (bipbop / vertical / …) loaded as a plain media item. */
+internal class DemoLoadRequest(val source: DemoSource) : PlaybackLoadRequest {
+    override val loadKey: String = "demo:${source.name}:${source.url}"
+}
+
+/**
+ * Scrub-preview tunables (plan.md FU-1, Scrutiny #1).
+ */
+private const val SCRUB_DEBOUNCE_MS = 200L
+private val ScrubPreviewWidth = 160.dp
+private val ScrubPreviewHeight = 90.dp
+/** Material3 Slider thumb radius; used to map fraction → thumb center x. */
+private val SliderThumbRadius = 10.dp
 
 actual fun createHttpClient(): HttpClient = HttpClient()
 
@@ -91,6 +135,13 @@ actual fun PlatformPlayerScreen(
         }
     }
 
+    // What the player is currently asked to play. Defaults to the production
+    // (ladder-resolved) source; the debug "Demo" menu swaps in an arbitrary URL
+    // (plan.md FU-4) by switching this state, bypassing ladder synthesis.
+    var activeLoad by remember(url) {
+        mutableStateOf<PlaybackLoadRequest>(ProductionSource(url))
+    }
+
     val resolvedItem = itemResult
     if (controller == null || resolvedItem == null) {
         PlayerLoadingState(onClose = onClose)
@@ -99,10 +150,13 @@ actual fun PlatformPlayerScreen(
 
     ExoPlayerScreen(
         player = controller,
-        renditions = resolvedItem.renditions,
-        mediaItemUri = resolvedItem.mediaItemUri,
+        renditions = if (activeLoad is ProductionSource) resolvedItem.renditions else null,
+        loadRequest = activeLoad,
         url = url,
+        eventNumber = eventNumber,
         onClose = onClose,
+        onSelectDemoSource = { source -> activeLoad = DemoLoadRequest(source) },
+        onSelectProduction = { activeLoad = ProductionSource(url) },
     )
 }
 
@@ -110,20 +164,42 @@ actual fun PlatformPlayerScreen(
 private fun ExoPlayerScreen(
     player: Player,
     renditions: List<ProbedRendition>?,
-    mediaItemUri: String,
+    loadRequest: PlaybackLoadRequest,
     url: String,
+    eventNumber: Int?,
     onClose: () -> Unit,
+    onSelectDemoSource: (DemoSource) -> Unit,
+    onSelectProduction: () -> Unit,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val videoTapInteractionSource = remember { MutableInteractionSource() }
 
-    // Hand the resolved media item to the service-owned player once.
-    LaunchedEffect(player, mediaItemUri) {
-        player.setMediaItem(playbackMediaItem(mediaItemUri))
+    // Hand the media item to the service-owned player whenever the source
+    // changes. Production sources use the ladder-resolved URI (forced HLS); demo
+    // sources load the URL as a plain item so ExoPlayer infers the type.
+    LaunchedEffect(player, loadRequest.loadKey) {
+        val item = when (loadRequest) {
+            is ProductionSource -> playbackMediaItem(loadRequest.resolvedMediaItemUri)
+            is DemoLoadRequest -> demoMediaItem(
+                url = loadRequest.source.url,
+                title = loadRequest.source.label,
+                mimeType = loadRequest.source.mimeAwareMimeType,
+            )
+        }
+        player.setMediaItem(item)
         player.prepare()
         player.playWhenReady = true
     }
     val state = rememberPlayerState(player)
+
+    // Rotate-to-fullscreen toggle (offered for landscape content).
+    val fullscreen = rememberFullscreenToggle()
+
+    // Phase 8: on-device transcription (CC). The RenderersFactory in the service
+    // taps PCM; captions render via CaptionOverlay below. Lazily loads the Vosk
+    // model on first enable (~50 MB, shipped as an asset, not bundled).
+    val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
     var sliderFraction by remember(player) { mutableStateOf(0f) }
@@ -152,6 +228,55 @@ private fun ExoPlayerScreen(
         if (!isScrubbing && state.duration > 0L) {
             sliderFraction = (state.currentPosition.toFloat() / state.duration.toFloat())
                 .coerceIn(0f, 1f)
+        }
+    }
+
+    // ── Scrub preview (plan.md FU-1, Scrutiny #1) ────────────────────────────
+    // The shared PreviewFrameEngine seeks the `_160p` rendition to the scrubbed
+    // position (CLOSEST_SYNC, ~2 s granularity) and caches by event + position
+    // bucket. We show the cached frame above the thumb while dragging, falling
+    // back to a time-only bubble if no frame is ready yet — scrubbing never
+    // blocks on the network.
+    val engine = LocalPreviewFrameEngine.current
+    var scrubBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // Thumb center x in root-window pixels, plus the bottom-controls box's root
+    // origin/width, so the preview bubble can track the thumb horizontally.
+    var thumbCenterRootX by remember { mutableFloatStateOf(0f) }
+    var controlsBoxRootX by remember { mutableFloatStateOf(0f) }
+    var controlsBoxWidthPx by remember { mutableFloatStateOf(0f) }
+
+    val duration = state.duration
+    val scrubTargetPositionMs by remember(state, isScrubbing, sliderFraction, duration) {
+        derivedStateOf {
+            if (isScrubbing && duration > 0L) {
+                (duration * sliderFraction).roundToLong().coerceIn(0L, duration)
+            } else {
+                0L
+            }
+        }
+    }
+
+    // Reset the bubble when a scrub ends; otherwise debounce and request a frame.
+    LaunchedEffect(isScrubbing, scrubTargetPositionMs) {
+        if (!isScrubbing || duration <= 0L || eventNumber == null) {
+            scrubBitmap = null
+            return@LaunchedEffect
+        }
+        // Show any already-cached frame for this position instantly (free).
+        scrubBitmap = engine?.cachedScrubBitmap(eventNumber, scrubTargetPositionMs)
+        // Debounce so we don't seek on every pixel of drag (plan.md: ~200 ms).
+        delay(SCRUB_DEBOUNCE_MS)
+        // Capture the target we requested so a late frame after the drag moves
+        // on is dropped rather than flashing a stale position.
+        val requestedPosition = scrubTargetPositionMs
+        val frame = engine?.requestScrubFrame(
+            eventNumber = eventNumber,
+            positionMs = requestedPosition,
+            width = with(density) { ScrubPreviewWidth.roundToPx() },
+            height = with(density) { ScrubPreviewHeight.roundToPx() },
+        )
+        if (frame != null && isScrubbing && scrubTargetPositionMs == requestedPosition) {
+            scrubBitmap = frame
         }
     }
 
@@ -216,7 +341,7 @@ private fun ExoPlayerScreen(
                 Box(
                     modifier = surfaceModifier.onGloballyPositioned { coords ->
                         // Report the video's on-screen bounds for the PiP source-rect hint.
-                        val pos = coords.positionInWindow()
+                        val pos = coords.positionInRoot()
                         val w = coords.size.width
                         val h = coords.size.height
                         if (w > 0 && h > 0) {
@@ -265,6 +390,9 @@ private fun ExoPlayerScreen(
                                 TextButton(onClick = {
                                     state.resizeMode = nextPortraitResizeMode(state.resizeMode)
                                 }) { Text("Fit", color = Color.White) }
+                            } else {
+                                // Landscape content: offer rotate-to-fullscreen (plan.md FU-4).
+                                RotateButton(toggle = fullscreen)
                             }
                             ResizeToggleButton(
                                 resizeMode = state.resizeMode,
@@ -274,49 +402,83 @@ private fun ExoPlayerScreen(
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
+                            // Phase 8: closed-captions toggle (on-device Vosk).
+                            CaptionToggleButton(controller = captionController)
+                            // Debug-only demo-sources menu (Apple bipbop ladder +
+                            // a vertical sample + the production events), proving
+                            // the player isn't hardwired to one server (FU-4).
+                            if (com.livingpresence.inner.circle.squared.BuildConfig.DEBUG) {
+                                DemoSourcesMenu(
+                                    activeUrl = currentLoadUrl(loadRequest),
+                                    onDemoSourceSelected = onSelectDemoSource,
+                                    onProductionSelected = onSelectProduction,
+                                )
+                            }
                         }
                     }
                 }
 
-                // Bottom controls: timeline + transport.
+                // Bottom controls: scrub-preview bubble + timeline + transport.
                 AnimatedVisibility(
                     visible = showVideoControls,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     enter = fadeIn(),
                     exit = fadeOut(),
                 ) {
-                    PlayerControlPanel(
-                        player = player,
-                        state = state,
-                        isScrubbing = isScrubbing,
-                        sliderFraction = sliderFraction,
-                        canJumpToLive = canJumpToLive,
-                        onSliderValueChange = {
-                            isScrubbing = true
-                            sliderFraction = it
-                        },
-                        onSliderValueChangeFinished = {
-                            val duration = state.duration
-                            if (duration > 0L) {
-                                val newPosition = (duration * sliderFraction).roundToLong()
-                                    .coerceIn(0L, duration)
-                                player.seekTo(newPosition)
-                                state.currentPosition = newPosition
-                            }
-                            isScrubbing = false
-                        },
-                        onJumpToLive = {
-                            player.seekToDefaultPosition()
-                            player.play()
-                            state.currentPosition = state.duration
-                            sliderFraction = 1f
-                            isScrubbing = false
-                        },
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
+                            .onGloballyPositioned { coords ->
+                                controlsBoxRootX = coords.positionInRoot().x
+                                controlsBoxWidthPx = coords.size.width.toFloat()
+                            },
+                    ) {
+                        // Floating preview bubble above the seekbar thumb. Shown
+                        // only while actively scrubbing; the bubble centers on the
+                        // thumb's measured x position.
+                        if (isScrubbing && state.duration > 0L) {
+                            ScrubPreviewBubble(
+                                bitmap = scrubBitmap,
+                                positionLabel = formatPlaybackTime(scrubTargetPositionMs),
+                                thumbCenterRootX = thumbCenterRootX,
+                                boxRootX = controlsBoxRootX,
+                                boxWidthPx = controlsBoxWidthPx,
+                            )
+                        }
+                        PlayerControlPanel(
+                            player = player,
+                            state = state,
+                            isScrubbing = isScrubbing,
+                            sliderFraction = sliderFraction,
+                            canJumpToLive = canJumpToLive,
+                            onThumbCenterXChanged = { thumbCenterRootX = it },
+                            onSliderValueChange = {
+                                isScrubbing = true
+                                sliderFraction = it
+                            },
+                            onSliderValueChangeFinished = {
+                                val dur = state.duration
+                                if (dur > 0L) {
+                                    val newPosition = (dur * sliderFraction).roundToLong()
+                                        .coerceIn(0L, dur)
+                                    player.seekTo(newPosition)
+                                    state.currentPosition = newPosition
+                                }
+                                isScrubbing = false
+                            },
+                            onJumpToLive = {
+                                player.seekToDefaultPosition()
+                                player.play()
+                                state.currentPosition = state.duration
+                                sliderFraction = 1f
+                                isScrubbing = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
                 }
 
                 // Debug stats overlay (toggle).
@@ -330,6 +492,16 @@ private fun ExoPlayerScreen(
                             .padding(top = 56.dp, start = 8.dp),
                     )
                 }
+
+                // Phase 8: rolling transcription captions over the video.
+                if (captionController.enabled) {
+                    CaptionOverlay(
+                        captions = captionController.captions,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 120.dp, start = 24.dp, end = 24.dp),
+                    )
+                }
             }
         }
 
@@ -339,6 +511,77 @@ private fun ExoPlayerScreen(
                 error = playbackError,
                 onRetry = { player.prepare(); player.play() },
                 onClose = onClose,
+            )
+        }
+    }
+}
+
+/**
+ * The YouTube-style scrub-preview bubble: a floating card above the seekbar
+ * showing the frame at the scrubbed position, or a time-only bubble when the
+ * frame isn't ready yet (the graceful fallback — never blocks the drag).
+ *
+ * Positioning is done in root-window pixels: the slider reports the thumb's
+ * center x in root space and this composable receives the bottom-controls box's
+ * root origin, so the offset = thumb − box origin places the bubble correctly
+ * regardless of where the controls sit. The bubble is clamped to stay within
+ * the controls box width.
+ *
+ * @param bitmap The extracted frame, or null to show the time-only fallback.
+ * @param positionLabel Formatted scrubbed position (e.g. "12:34") for the label.
+ * @param thumbCenterRootX The slider thumb's center x in root-window pixels.
+ * @param boxRootX The bottom-controls box's root x in pixels.
+ * @param boxWidthPx The bottom-controls box's width in pixels (for clamping).
+ */
+@Composable
+private fun ScrubPreviewBubble(
+    bitmap: Bitmap?,
+    positionLabel: String,
+    thumbCenterRootX: Float,
+    boxRootX: Float,
+    boxWidthPx: Float,
+) {
+    val density = LocalDensity.current
+    val bubbleWidthPx = with(density) { ScrubPreviewWidth.toPx() }
+    val halfWidthPx = bubbleWidthPx / 2f
+    // Thumb x relative to the controls box, then shift left by half the bubble
+    // width so the bubble centers on the thumb. Clamp to keep it on screen.
+    val rawLeft = (thumbCenterRootX - boxRootX) - halfWidthPx
+    val maxLeft = (boxWidthPx - bubbleWidthPx).coerceAtLeast(0f)
+    val xPx = rawLeft.coerceIn(0f, maxLeft).roundToInt()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset { IntOffset(x = xPx, y = 0) }
+            .padding(bottom = 72.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.85f))
+                .padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (bitmap != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Scrub preview frame",
+                    modifier = Modifier
+                        .width(ScrubPreviewWidth)
+                        .height(ScrubPreviewHeight)
+                        .clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.Low,
+                )
+            }
+            Text(
+                text = positionLabel,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
     }
@@ -365,6 +608,7 @@ private fun PlayerControlPanel(
     isScrubbing: Boolean,
     sliderFraction: Float,
     canJumpToLive: Boolean,
+    onThumbCenterXChanged: (Float) -> Unit,
     onSliderValueChange: (Float) -> Unit,
     onSliderValueChangeFinished: () -> Unit,
     onJumpToLive: () -> Unit,
@@ -375,6 +619,10 @@ private fun PlayerControlPanel(
     } else {
         state.currentPosition
     }
+    // Hoisted out of the onGloballyPositioned lambda below: reading a
+    // CompositionLocal is a @Composable call, so it can't happen in that callback.
+    val density = LocalDensity.current
+    val thumbRadiusPx = with(density) { SliderThumbRadius.toPx() }
 
     Column(modifier = modifier) {
         if (state.isSeekable && state.duration > 0L) {
@@ -383,6 +631,18 @@ private fun PlayerControlPanel(
                 onValueChange = onSliderValueChange,
                 onValueChangeFinished = onSliderValueChangeFinished,
                 valueRange = 0f..1f,
+                modifier = Modifier.onGloballyPositioned { coords ->
+                    // Map the slider fraction to the thumb's center x in root
+                    // coordinates. Material3's Slider insets the active track by
+                    // the thumb radius on each side; the thumb center travels
+                    // that inner span. Accurate enough for bubble tracking, and
+                    // the bubble's own clamp keeps it on screen regardless.
+                    val w = coords.size.width
+                    val rootX = coords.positionInRoot().x
+                    val innerStart = rootX + thumbRadiusPx
+                    val innerSpan = (w - 2 * thumbRadiusPx).coerceAtLeast(0f)
+                    onThumbCenterXChanged(innerStart + sliderFraction * innerSpan)
+                },
             )
         }
         Row(
@@ -428,6 +688,24 @@ private fun PlayerControlPanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CaptionToggleButton(controller: CaptionController) {
+    val ready by controller.ready.collectAsState()
+    val loadError by controller.loadError.collectAsState()
+    val label = when {
+        controller.enabled && loadError != null -> "CC!"
+        controller.enabled && !ready -> "CC…"
+        controller.enabled -> "CC●"
+        else -> "CC"
+    }
+    TextButton(onClick = controller.onToggle) {
+        Text(
+            text = label,
+            color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
+        )
     }
 }
 
@@ -515,7 +793,7 @@ private fun ImmersiveSystemBars(active: Boolean) {
     }
 }
 
-private fun android.content.Context.findActivity(): Activity? {
+internal fun android.content.Context.findActivity(): Activity? {
     var ctx: android.content.Context = this
     while (ctx is android.content.ContextWrapper) {
         if (ctx is Activity) return ctx
@@ -535,6 +813,11 @@ private fun nextResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
 private fun nextPortraitResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
     ResizeMode.FIT -> ResizeMode.ZOOM
     else -> ResizeMode.FIT
+}
+
+private fun currentLoadUrl(loadRequest: PlaybackLoadRequest): String = when (loadRequest) {
+    is DemoLoadRequest -> loadRequest.source.url
+    is ProductionSource -> loadRequest.resolvedMediaItemUri
 }
 
 private fun parseEventNumber(url: String): Int? =

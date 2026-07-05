@@ -18,6 +18,9 @@ kotlinx-serialization = "1.8.0"
 dokka = "1.9.20"
 kover = "0.9.1"
 binary-compatibility-validator = "0.16.3"
+# On-device speech recognition (Phase 8 transcription). The ~50 MB acoustic
+# model is shipped as a downloadable asset, NOT bundled — see TranscriptionEngine.
+vosk = "0.3.47"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -41,6 +44,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 splash-screen-support = "androidx.core:core-splashscreen:1.2.0"
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "androidx-work" }
@@ -54,6 +58,7 @@ media3-session = { module = "androidx.media3:media3-session", version.ref = "med
 media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
 media3-test-utils-robolectric = { module = "androidx.media3:media3-test-utils-robolectric", version.ref = "media3" }
 media3-ui-compose-material3 = { module = "androidx.media3:media3-ui-compose-material3", version.ref = "media3" }
+vosk-android = { module = "com.alphacephei:vosk-android", version.ref = "vosk" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
