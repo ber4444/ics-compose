@@ -1,7 +1,6 @@
 # :mediakit
 
-A small Kotlin Multiplatform **playback SDK** — the showcase artifact for the
-"SDK development" half of the job requirement. It owns everything stream-related
+A small Kotlin Multiplatform **playback SDK**. It owns everything stream-related
 (URL construction, HLS playlist inspection, ABR-ladder synthesis, event probing)
 so the app consumes a documented API rather than sprinkling a hardcoded server
 through its UI code.

@@ -1,9 +1,11 @@
-# Inner Circle Squared — Media Playback Showcase
+# Inner Circle Squared
 
-A Compose Multiplatform (Android + wasmJs) media-playback application built as a
-portfolio demonstration of **SDK development and video-playback solutions with
-modern Android media frameworks (Media3/ExoPlayer)**, including player-based UIs
-and handling horizontal **and** vertical video.
+A Compose Multiplatform (Android + wasmJs) app for streaming live and recorded
+HLS event streams, built on **Media3/ExoPlayer** with a standalone KMP playback
+SDK (`:mediakit`).
+
+**Live on Google Play:**
+[com.livingpresence.inner.circle.squared](https://play.google.com/store/apps/details?id=com.livingpresence.inner.circle.squared)
 
 It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 *unadvertised* sibling renditions into a genuine client-side ABR ladder.
@@ -21,13 +23,13 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 | 3 | Player upgrades: real ABR via ladder synthesis, fit/fill/zoom resize matrix for horizontal **& vertical** video, auto-hide/buffering/error UX, stats overlay + quality menu |
 | 4 | `PlaybackService` (MediaSession), PiP (aspect-clamped for vertical video), background-audio-to-audio-only-tier, `MemoryGovernor` |
 | 5 | Offline downloads (`DownloadService` + `WorkManagerScheduler` + `SimpleCache` shared with playback), wifi-only, bounded events only |
-| 6 | Test harness (Robolectric + unit tests), Dokka + binary-compatibility-validator + Kover, this showcase README |
+| 6 | Test harness (Robolectric + unit tests), Dokka + binary-compatibility-validator + Kover, docs |
 
 ## Architecture
 
 ```
 :composeApp        — app UI (feed, login, player), navigation, DI wiring
-:mediakit          — KMP playback SDK (the showcase artifact)
+:mediakit          — KMP playback SDK
   commonMain       — PlaylistInspector (pure-Kotlin HLS parser), LadderSynthesizer
                      (multivariant playlist builder), LadderResolver (JIT rendition
                      probing), EventCatalog (parallel event probing), MediaKitConfig,
@@ -38,18 +40,18 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 ```
 
 The playback engine lives in `:mediakit`, **owned by a `MediaSessionService`**,
-not by a composable — it survives config changes, enables background audio/PiP,
-and is the SDK artifact.
+not by a composable — it survives config changes and enables background
+audio/PiP.
 
 - Shared UI and app state live in `composeApp/src/commonMain`
 - Shared image resources live in `composeApp/src/commonMain/composeResources`
 - Android entry points and playback integration live in `composeApp/src/androidMain`
 - Web entry points live in `composeApp/src/wasmJsMain`
 
-## The engineering decisions (interview material)
+## Engineering decisions
 
-These are the calls a media reviewer would expect to see defended. Full reasoning
-in [`plan.md`](./plan.md) §"Scrutiny".
+The load-bearing design calls and the reasoning behind them. Full detail in
+[`plan.md`](./plan.md) §"Scrutiny".
 
 - **Client-side ladder synthesis** — the server's master advertises only one
   720p variant, but four segment-aligned siblings exist (`_360p`/`_160p`/`_aac`).
