@@ -123,6 +123,13 @@ android {
         val eventsPassword = (project.findProperty("icsEventsPassword") as String?)
             ?: "SECRET"
         buildConfigField("String", "EVENTS_PASSWORD", "\"$eventsPassword\"")
+
+        // Optional portrait demo clip URL (debug demo menu). No durable public
+        // vertical test stream exists, so this defaults empty → the menu entry
+        // is hidden until you point it at a portrait clip you host.
+        //   -PicsVerticalDemoUrl=https://host/portrait.mp4
+        val verticalDemoUrl = (project.findProperty("icsVerticalDemoUrl") as String?) ?: ""
+        buildConfigField("String", "VERTICAL_DEMO_URL", "\"$verticalDemoUrl\"")
     }
 
     buildFeatures {

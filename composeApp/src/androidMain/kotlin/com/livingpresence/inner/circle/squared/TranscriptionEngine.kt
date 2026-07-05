@@ -3,6 +3,7 @@ package com.livingpresence.inner.circle.squared
 import android.content.Context
 import android.util.Log
 import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.LinkedBlockingQueue
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
@@ -47,13 +49,14 @@ private const val MAX_CUES = 30
  *  3. A [Recognizer] running on that thread emits partial/final JSON results.
  *  4. Results are parsed into [CaptionCue]s and published via [captions].
  *
- * **Model sourcing.** The Vosk acoustic model is ~50 MB and is *not* bundled in
- * the APK (plan.md: "ship the model as a downloadable asset, not in the APK").
- * [loadModel] resolves a previously-downloaded copy from app-private storage;
- * the actual fetch from a model server is stubbed with a clear TODO plus a
- * local-asset fallback (an optional `assets/models/vosk-model` directory a
- * developer can drop the model into). The architecture is complete; only the
- * network fetch is deferred.
+     * **Model sourcing.** The Vosk acoustic model is ~41 MB and is *not* bundled in
+     * the APK (plan.md: "ship the model as a downloadable asset, not in the APK").
+     * [loadModel] resolves a previously-unpacked copy from app-private storage;
+     * if none is present it downloads the small English model
+     * (`vosk-model-small-en-us-0.15`) from the official Vosk CDN and
+     * stream-unzips it on first use — so the first CC toggle self-provisions the
+     * model with no manual setup. A developer-supplied `assets/models/vosk-model`
+     * fallback is also honored (e.g. for offline testing).
  *
  * **Engine lifetime.** A singleton bound to the app process — the player is
  * service-owned ([PlaybackService]) and outlives the composable, so the engine
@@ -309,20 +312,18 @@ internal class TranscriptionEngine private constructor(private val appContext: C
      * Resolves the Vosk model directory.
      *
      * Priority:
-     *  1. A previously unpacked model in app-private storage
+     *  1. A previously-unpacked model in app-private storage
      *     (`filesDir/vosk-model/`) — the canonical post-download location.
      *  2. A developer-supplied local asset fallback
-     *     (`assets/models/vosk-model/`), for testing without a model server.
+     *     (`assets/models/vosk-model/`), for testing without a download.
      *
-     * The network download from a model server is intentionally NOT implemented
-     * here (no model server exists in this project); a real deployment would
-     * fetch + unpack the zip into location #1 before calling [loadModel].
-     *
-     * TODO(model-server): fetch the small English model
-     * (`vosk-model-small-en-us-0.15`, ~40 MB) over HTTP on first CC toggle,
-     * stream-unzip into [downloadedModelDir], then proceed.
+     * If neither is present, the small English model
+     * (`vosk-model-small-en-us-0.15`, ~41 MB) is downloaded from the official
+     * Vosk model CDN and stream-unzipped into location #1, so the first CC
+     * toggle self-provisions the model (no manual setup). The download runs on
+     * [Dispatchers.IO]; [loadError] surfaces any failure.
      */
-    private fun resolveModelDir(): File {
+    private suspend fun resolveModelDir(): File {
         val downloaded = downloadedModelDir(appContext)
         if (downloaded.isDirectory && downloaded.listFiles()?.isNotEmpty() == true) {
             return downloaded
@@ -330,30 +331,104 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         // Local-asset fallback: copy once from assets, if present.
         val assetDir = copyAssetModelIfNeeded(appContext)
         if (assetDir != null) return assetDir
-        throw IllegalStateException(
-            "No Vosk model found. Download vosk-model-small-en-us into ${downloaded.absolutePath} " +
-                "(or assets/models/vosk-model/). See TranscriptionEngine docs.",
-        )
+        // Network self-provision: download + unzip the small model on first use.
+        downloadAndUnzipModel(downloaded)
+        return downloaded
     }
 
-    private fun copyAssetModelIfNeeded(context: Context): File? {
-        return runCatching {
-            val list = context.assets.list("models/vosk-model") ?: return null
-            if (list.isEmpty()) return null
-            val dest = downloadedModelDir(context)
+    /**
+     * Downloads the small English model zip from the Vosk CDN and stream-unzips
+     * it into [dest]. The zip's top-level dir (`vosk-model-small-en-us-0.15/`)
+     * is stripped so the model files land directly in [dest].
+     */
+    private suspend fun downloadAndUnzipModel(dest: File) {
+        withContext(Dispatchers.IO) {
             dest.mkdirs()
-            // Shallow copy; a real model has nested dirs — recursive copy left
-            // as a TODO once the asset path is exercised with a real model.
-            for (name in list) {
-                context.assets.open("models/vosk-model/$name").use { input ->
-                    File(dest, name).outputStream().use { input.copyTo(it) }
-                }
+            val tmpZip = File(dest, "model.zip")
+            try {
+                downloadTo(MODEL_URL, tmpZip)
+                unzipFlatteningTopDir(tmpZip, dest)
+            } finally {
+                tmpZip.delete()
             }
-            dest
-        }.getOrNull()
+        }
+    }
+
+    private fun downloadTo(url: String, dest: File) {
+        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 60_000
+            instanceFollowRedirects = true
+        }
+        connection.inputStream.use { input ->
+            dest.outputStream().use { input.copyTo(it) }
+        }
+        if (connection.responseCode !in 200..299) {
+            throw IOException("Model download failed: HTTP ${connection.responseCode}")
+        }
+    }
+
+    /** Unzips [zip] into [dest], stripping a single top-level directory if present. */
+    private fun unzipFlatteningTopDir(zip: File, dest: File) {
+        java.util.zip.ZipInputStream(zip.inputStream().buffered()).use { zis ->
+            while (true) {
+                val entry = zis.nextEntry ?: break
+                if (entry.isDirectory) continue
+                // Strip the first path segment if the archive nests under one dir
+                // (vosk-model-small-en-us-0.15/...  →  ...).
+                val rawPath = entry.name
+                val topDirEnd = rawPath.indexOf('/')
+                val relativePath = if (topDirEnd >= 0 && topDirEnd < rawPath.length - 1) {
+                    rawPath.substring(topDirEnd + 1)
+                } else {
+                    rawPath
+                }
+                val outFile = File(dest, relativePath)
+                outFile.parentFile?.mkdirs()
+                outFile.outputStream().use { zis.copyTo(it) }
+                zis.closeEntry()
+            }
+        }
+    }
+
+    private suspend fun copyAssetModelIfNeeded(context: Context): File? {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val list = context.assets.list("models/vosk-model") ?: return@withContext null
+                if (list.isEmpty()) return@withContext null
+                val dest = downloadedModelDir(context)
+                dest.mkdirs()
+                // Recursive copy: a real model has nested dirs.
+                copyAssetDir(context, "models/vosk-model", dest)
+                dest
+            }.getOrNull()
+        }
+    }
+
+    private fun copyAssetDir(context: Context, assetPath: String, dest: File) {
+        val list = context.assets.list(assetPath) ?: return
+        if (list.isEmpty()) {
+            // Leaf file.
+            context.assets.open(assetPath).use { input ->
+                dest.outputStream().use { input.copyTo(it) }
+            }
+        } else {
+            dest.mkdirs()
+            for (name in list) {
+                copyAssetDir(context, "$assetPath/$name", File(dest, name))
+            }
+        }
     }
 
     companion object {
+        /**
+         * The small English Vosk model, downloaded on first CC toggle. The
+         * official Vosk model CDN; ~41 MB. Ship-the-model-as-an-asset is
+         * intentionally avoided (~50 MB in the APK) — this self-provisions.
+         */
+        private const val MODEL_URL =
+            "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
+
         /** The on-disk location a downloaded model is unpacked into. */
         fun downloadedModelDir(context: Context): File =
             File(context.filesDir, "vosk-model")

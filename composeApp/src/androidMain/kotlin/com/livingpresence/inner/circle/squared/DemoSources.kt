@@ -49,16 +49,13 @@ internal enum class DemoSource(val label: String, val url: String, val mimeAware
      * and portrait PiP clamping. ExoPlayer infers the type from the extension
      * (no mime forcing).
      *
-     * CAVEAT (plan.md FU-4 anticipated this): a reliable, durable *public*
-     * vertical/portrait HLS master is uncommon, and the long-lived public
-     * test-video buckets (Google's `gtv-videos-bucket`, `exoplayer-test-media`)
-     * are landscape-only; the bipbop/mux test streams are also landscape. So
-     * [VERTICAL_URL] is a placeholder; **point it at a real portrait clip you
-     * host before relying on it** (any height>width MP4/M3U8 works — the
-     * surrounding code is URL-agnostic). The portrait *code path* (resize
-     * matrix, PiP clamping, orientation handling) is what FU-4 delivers and is
-     * exercised by [PlayerState] with a portrait `videoSize`; a durable public
-     * portrait source remains a TODO.
+     * The URL is sourced from the `icsVerticalDemoUrl` gradle property (set it
+     * to a portrait clip you host — any height>width MP4/M3U8 works); it
+     * defaults to empty, in which case the menu entry is hidden until a URL is
+     * configured. The portrait *code path* (resize matrix, PiP clamping,
+     * orientation handling) is also exercised by [PlayerState] with a portrait
+     * `videoSize` in tests; this entry provides a live demo when a source is
+     * available.
      */
     VERTICAL_MP4(
         label = "Vertical (portrait)",
@@ -69,16 +66,19 @@ internal enum class DemoSource(val label: String, val url: String, val mimeAware
     companion object {
         /** Returns the [DemoSource] whose [url] matches, or null otherwise. */
         fun fromUrl(url: String): DemoSource? = entries.firstOrNull { it.url == url }
+
+        /** Whether the vertical demo source has been configured (URL set). */
+        val verticalConfigured: Boolean get() = VERTICAL_URL.isNotBlank()
     }
 }
 
 /**
- * Placeholder for the vertical/portrait demo clip — see
- * [DemoSource.VERTICAL_MP4]. Replace with a real portrait clip you control
- * before relying on it.
+ * The vertical/portrait demo clip URL — from the `icsVerticalDemoUrl` gradle
+ * property (default empty → the menu entry is hidden). Point it at a portrait
+ * clip you control: `-PicsVerticalDemoUrl=https://host/portrait.mp4`.
  */
-private const val VERTICAL_URL: String =
-    "https://example.com/path/to/portrait-clip.mp4"
+private val VERTICAL_URL: String =
+    com.livingpresence.inner.circle.squared.BuildConfig.VERTICAL_DEMO_URL
 
 /**
  * Debug-only menu offering the [DemoSource]s plus a "Production" entry that
@@ -105,6 +105,9 @@ internal fun DemoSourcesMenu(
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DemoSource.entries.forEach { source ->
+                // Skip the vertical entry when its URL isn't configured (no
+                // durable public portrait source exists — see VERTICAL_URL).
+                if (source == DemoSource.VERTICAL_MP4 && !DemoSource.verticalConfigured) return@forEach
                 DropdownMenuItem(
                     text = { Text(markLabel(source.label, source == activeSource)) },
                     onClick = {

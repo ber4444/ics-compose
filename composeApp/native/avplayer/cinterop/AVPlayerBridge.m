@@ -59,6 +59,12 @@
         [superview.layer addSublayer:self.playerLayer];
     }
     self.playerLayer.frame = superview.bounds;
+    // CMP's UIKitView renders the native UIView *above* the Compose layer tree,
+    // which would put the video on top of the control overlays (slider, buttons).
+    // Lowering the host view's layer zPosition to a negative value places the
+    // entire native view (player sublayer included) below the Compose surface, so
+    // the Compose-drawn controls render on top and stay tappable.
+    superview.layer.zPosition = -1.0f;
 }
 
 @end
