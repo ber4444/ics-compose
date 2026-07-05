@@ -219,6 +219,18 @@ private fun ExoPlayerScreen(
         }
     }
 
+    // Keep the slider thumb tracking playback while not being dragged. Needed
+    // for live streams in particular: the production Wowza nDVR window grows
+    // (duration keeps increasing, MEDIA-SEQUENCE stays 0) rather than sliding,
+    // so a fraction computed once would drift further from the true position
+    // every time the window grows.
+    LaunchedEffect(state.currentPosition, state.duration, isScrubbing) {
+        if (!isScrubbing && state.duration > 0L) {
+            sliderFraction = (state.currentPosition.toFloat() / state.duration.toFloat())
+                .coerceIn(0f, 1f)
+        }
+    }
+
     // ── Scrub preview (plan.md FU-1, Scrutiny #1) ────────────────────────────
     // The shared PreviewFrameEngine seeks the `_160p` rendition to the scrubbed
     // position (CLOSEST_SYNC, ~2 s granularity) and caches by event + position

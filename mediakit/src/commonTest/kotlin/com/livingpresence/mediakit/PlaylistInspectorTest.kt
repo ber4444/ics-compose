@@ -164,4 +164,88 @@ class PlaylistInspectorTest {
         assertNull(v.frameRate)
         assertNull(v.averageBandwidthBitsPerSecond)
     }
+
+    // --- Real production excerpts (captured 2026-07-03 during a live event on
+    // the Wowza server, event10 was live / event14 had already ended) ---
+
+    @Test
+    fun parseMediaPlaylist_liveExcerptFromProductionServerHasNoEndList() {
+        // event10 chunklist mid-broadcast: MEDIA-SEQUENCE stuck at 0 while the
+        // segment count kept growing (706 -> 767 across a 60s re-fetch) — a
+        // growing, not sliding, DVR window. No #EXT-X-ENDLIST anywhere.
+        val chunklist = """
+            #EXTM3U
+            #EXT-X-VERSION:3
+            #EXT-X-TARGETDURATION:4
+            #EXT-X-MEDIA-SEQUENCE:0
+            #EXTINF:2.002,
+            media_w227929621_DVR_0.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_1.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_2.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_764.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_765.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_766.ts
+        """.trimIndent()
+
+        val media = PlaylistInspector.parseMediaPlaylist(chunklist)
+
+        assertTrue(media.isLive)
+        assertEquals(4, media.targetDurationSeconds)
+        assertEquals(6, media.segmentCount)
+    }
+
+    @Test
+    fun parseMediaPlaylist_boundedExcerptFromProductionServerHasEndList() {
+        // event14 chunklist after the broadcast ended: 1,675 segments totalling
+        // ~58 minutes, terminated by #EXT-X-ENDLIST.
+        val chunklist = """
+            #EXTM3U
+            #EXT-X-VERSION:3
+            #EXT-X-TARGETDURATION:4
+            #EXT-X-MEDIA-SEQUENCE:0
+            #EXTINF:2.002,
+            media_w1679678732_DVR_0.ts
+            #EXTINF:2.002,
+            media_w1679678732_DVR_1.ts
+            #EXTINF:2.002,
+            media_w1679678732_DVR_1673.ts
+            #EXTINF:2.002,
+            media_w1679678732_DVR_1674.ts
+            #EXT-X-ENDLIST
+        """.trimIndent()
+
+        val media = PlaylistInspector.parseMediaPlaylist(chunklist)
+
+        assertFalse(media.isLive)
+        assertEquals(4, media.segmentCount)
+        assertEquals(8.008, media.durationSeconds)
+    }
+
+    @Test
+    fun parseMediaPlaylist_malformedInputDoesNotThrow() {
+        val results = listOf(
+            "",
+            "not an m3u8 at all",
+            "#EXTM3U\n#EXT-X-TARGETDURATION:not-a-number\n#EXTINF:not-a-number,\nsegment.ts",
+            "\n\n\n",
+        ).map { PlaylistInspector.parseMediaPlaylist(it) }
+
+        for (media in results) {
+            // Absence of ENDLIST in garbage input still reads as "live" per the
+            // documented signal — no exception, sensible zeroed-out fallbacks.
+            assertTrue(media.isLive)
+            assertEquals(0, media.targetDurationSeconds)
+        }
+    }
+
+    @Test
+    fun parseMaster_malformedInputDoesNotThrow() {
+        assertEquals(emptyList<PlaylistInspector.Variant>(), PlaylistInspector.parseMaster(""))
+        assertEquals(emptyList<PlaylistInspector.Variant>(), PlaylistInspector.parseMaster("garbage\nmore garbage"))
+    }
 }

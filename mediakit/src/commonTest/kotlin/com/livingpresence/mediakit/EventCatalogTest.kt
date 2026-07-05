@@ -9,6 +9,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -144,6 +145,54 @@ class EventCatalogTest {
         val (catalog, _) = catalog { _ -> HttpStatusCode.InternalServerError to "boom" }
 
         assertNull(catalog.probeEvent(2))
+    }
+
+    @Test
+    fun probeEvent_isLivePropagatesFromRealProductionLiveExcerpt() = runTest {
+        // Real event10 excerpt captured 2026-07-03 while it was on-air: no
+        // #EXT-X-ENDLIST, MEDIA-SEQUENCE 0 with a growing segment count.
+        val liveExcerpt = """
+            #EXTM3U
+            #EXT-X-VERSION:3
+            #EXT-X-TARGETDURATION:4
+            #EXT-X-MEDIA-SEQUENCE:0
+            #EXTINF:2.002,
+            media_w227929621_DVR_0.ts
+            #EXTINF:2.002,
+            media_w227929621_DVR_1.ts
+        """.trimIndent()
+        val (catalog, _) = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
+            HttpStatusCode.OK to liveExcerpt
+        }
+
+        val event = assertNotNull(catalog.probeEvent(1))
+
+        assertTrue(event.isLive)
+        assertEquals(4_003L, event.durationMs)
+    }
+
+    @Test
+    fun probeEvent_isLivePropagatesFromRealProductionBoundedExcerpt() = runTest {
+        // Real event14 excerpt captured 2026-07-03 after the broadcast ended.
+        val boundedExcerpt = """
+            #EXTM3U
+            #EXT-X-VERSION:3
+            #EXT-X-TARGETDURATION:4
+            #EXT-X-MEDIA-SEQUENCE:0
+            #EXTINF:2.002,
+            media_w1679678732_DVR_0.ts
+            #EXTINF:2.002,
+            media_w1679678732_DVR_1.ts
+            #EXT-X-ENDLIST
+        """.trimIndent()
+        val (catalog, _) = catalog(config = config.copy(maxEventNumber = 1)) { _ ->
+            HttpStatusCode.OK to boundedExcerpt
+        }
+
+        val event = assertNotNull(catalog.probeEvent(1))
+
+        assertTrue(!event.isLive)
+        assertEquals(4_003L, event.durationMs)
     }
 
     @Test
