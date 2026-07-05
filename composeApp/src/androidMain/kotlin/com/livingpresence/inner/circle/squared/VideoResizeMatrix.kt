@@ -9,8 +9,8 @@ import androidx.compose.ui.Modifier
 /**
  * Decides how the video surface fills its container given the content aspect
  * ratio and the chosen [ResizeMode]. This is the horizontal & vertical video
- * layout matrix (an explicit job requirement): portrait content (AR < 1) fills
- * height with pillarboxing under FIT; landscape content (AR > 1) fills width.
+ * layout matrix: portrait content (AR < 1) fills height with pillarboxing
+ * under FIT; landscape content (AR > 1) fills width.
  *
  * - [ResizeMode.FIT]  — letterbox/pillarbox so the whole frame is visible.
  * - [ResizeMode.FILL] — stretch to the container (may distort).
