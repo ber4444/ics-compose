@@ -10,24 +10,34 @@ recorded HLS event streams, built on **Media3/ExoPlayer** (Android) and
 It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 *unadvertised* sibling renditions into a genuine client-side ABR ladder.
 
-> 📐 The full design — ground-truth server measurements, scrutiny of every
-> proposed idea, and a phase-by-phase plan — lives in [`plan.md`](./plan.md).
-> Deferred follow-up PRs are tracked at the bottom of that file.
+> 📐 The full design — ground-truth server measurements and the rationale
+> behind each decision — lives in [`plan.md`](./plan.md).
 
-## Status
+## Features
 
-| Phase | What landed |
-|-------|-------------|
-| 0–1 | Audio-only plumbing removed; `:mediakit` KMP SDK extracted (`explicitApi`), pure-Kotlin HLS parsing + ladder synthesis, 27 common tests |
-| 2 | VideosDialog → thumbnail feed (`PreviewFrameEngine`: one shared decoder, `_160p` frame extraction, LRU cache) |
-| 3 | Player upgrades: real ABR via ladder synthesis, fit/fill/zoom resize matrix for horizontal **& vertical** video, auto-hide/buffering/error UX, stats overlay + quality menu |
-| 4 | `PlaybackService` (MediaSession), PiP (aspect-clamped for vertical video), background-audio-to-audio-only-tier, `MemoryGovernor` |
-| 5 | Offline downloads (`DownloadService` + `WorkManagerScheduler` + `SimpleCache` shared with playback), wifi-only, bounded events only |
-| 6 | Test harness (Robolectric + unit tests), Dokka + binary-compatibility-validator + Kover, docs |
-| 7 | iOS target (`iosArm64` + simulator): AVPlayer playback (`UIKitView` + `AVPlayerLayer` via an Obj-C cinterop bridge), PiP, background audio |
-| 8 | On-device transcription: `TeeAudioProcessor` PCM tap → Vosk recognizer → Compose caption overlay (model fetched on demand, not bundled) |
-| FU 1–5 | Scrub-preview thumbnails, poster-frame disk cache, `EventCatalog` TTL cache + retry, demo-sources debug menu + rotate-to-fullscreen, viewport-aware ABR |
-| Live QA | Live path verified against an on-air stream (DVR window grows, stale chunklist URLs stay valid); DVR slider-drift fix + real-data playlist fixtures ([#14](https://github.com/ber4444/ics-compose/pull/14)) |
+- **Adaptive streaming.** Genuine client-side ABR synthesized from four
+  unadvertised sibling renditions, with viewport-aware track selection so the
+  chosen quality matches the surface size.
+- **Live & recorded playback.** Live-vs-VOD is inferred from playlist inspection;
+  live events expose a LIVE badge and jump-to-live, and the seek bar tracks a
+  growing Wowza nDVR window without drift.
+- **Thumbnail feed with scrub preview.** Poster tiles and a YouTube-style
+  scrub-preview bubble are served by one shared frame engine backed by a
+  memory + disk cache — no per-tile players.
+- **Flexible presentation.** fit/fill/zoom resize matrix for both horizontal and
+  vertical (9:16) video, rotate-to-fullscreen, auto-hiding controls,
+  buffering/error UX, and a stats overlay + quality menu.
+- **Background & Picture-in-Picture.** Playback is owned by a `MediaSession`
+  service (surviving config changes), with PiP aspect-clamped for vertical video
+  and background audio constrained to the low-bitrate audio-only tier.
+- **Offline downloads.** Bounded (VOD) events download Wi-Fi-only via WorkManager
+  into a cache shared with playback; truly-live events get no download affordance.
+- **On-device captions.** Live transcription via a PCM audio tap → Vosk
+  recognizer → Compose caption overlay; the model is fetched on demand, not
+  bundled.
+- **Cross-platform.** Android (Media3/ExoPlayer), iOS (AVPlayer via an Obj-C
+  cinterop bridge), and a thin wasmJs web target, all sharing the `:mediakit`
+  SDK and Compose UI.
 
 ## Architecture
 
