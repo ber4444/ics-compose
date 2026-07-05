@@ -49,7 +49,33 @@ class PlaybackService : MediaSessionService() {
         super.onCreate()
 
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this)
+        // FU-5: viewport-aware ABR. Cap the highest decoded video to what the
+        // physical display can actually show, so the player never decodes a
+        // rendition larger than the screen (saves bandwidth + decode on the
+        // synthesized ladder and demo streams). `setViewportSizeToPhysicalDisplaySize`
+        // is the media3 1.10 Builder API that reads the display size from the
+        // service Context across all API levels (no manual WindowMetrics wiring).
+        // No-op when a master advertises a single variant ≤ display (this server's
+        // one-720p master), correct on multi-rung ladders. `orientationMayChange`
+        // keeps the constraint valid after rotation by taking the max orientation.
+        trackSelector.setParameters(
+            trackSelector.buildUponParameters()
+                .setViewportSizeToPhysicalDisplaySize(
+                    /* context = */ this,
+                    /* orientationMayChange = */ true,
+                )
+                .build(),
+        )
         val player = ExoPlayer.Builder(this)
+            // Phase 8: a custom RenderersFactory taps decoded PCM (via a
+            // TeeAudioProcessor → TranscriptionEngine) without touching playback,
+            // and leaves the built-in text renderer enabled so CEA-608/708 would
+            // also surface if a stream carried them. The engine is a process
+            // singleton; it's started/stopped lazily from the player screen's CC
+            // toggle (not here) so the ~50 MB model is loaded only on opt-in.
+            .setRenderersFactory(
+                TranscriptionRenderersFactory(this, TranscriptionEngine.get(this)),
+            )
             .setTrackSelector(trackSelector)
             .setLoadControl(MemoryGovernor.adaptiveLoadControl(this))
             .setAudioAttributes(

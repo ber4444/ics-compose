@@ -59,18 +59,40 @@ fun rememberPlaybackController(context: Context): MediaController? {
  * (the launcher icon; a real event thumbnail would need async extraction into
  * the metadata, tracked as a follow-up). The event number is parsed from the
  * URL for the title.
+ *
+ * The production streams are HLS, so the mime type is forced to
+ * [MimeTypes.APPLICATION_M3U8] (a `data:` URI carrying the synthesized
+ * multivariant playlist isn't obviously HLS from its scheme). For arbitrary
+ * demo sources (e.g. a plain `.mp4`), use [demoMediaItem] instead — forcing
+ * HLS on an MP4 breaks playback.
  */
-internal fun playbackMediaItem(url: String): MediaItem {
-    val eventNumber = Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)
-    return MediaItem.Builder()
+internal fun playbackMediaItem(url: String): MediaItem =
+    mediaItem(url, MimeTypes.APPLICATION_M3U8, titleFor(url))
+
+/**
+ * Builds a [MediaItem] for an arbitrary demo source (plan.md FU-4). The mime
+ * type is *not* forced by default (ExoPlayer infers it from the URL/extension),
+ * which is correct for `.mp4` clips and for HLS masters whose `.m3u8` path is
+ * self-describing. Pass [mimeType] only when the type can't be inferred.
+ */
+internal fun demoMediaItem(url: String, title: String, mimeType: String? = null): MediaItem =
+    mediaItem(url, mimeType, title)
+
+private fun mediaItem(url: String, mimeType: String?, title: String): MediaItem {
+    val builder = MediaItem.Builder()
         .setUri(url)
-        .setMimeType(MimeTypes.APPLICATION_M3U8)
         .setMediaMetadata(
             androidx.media3.common.MediaMetadata.Builder()
-                .setTitle(if (eventNumber != null) "Event $eventNumber" else "Inner Circle Squared")
+                .setTitle(title)
                 .setArtist("Inner Circle Squared")
                 .setArtworkUri(android.net.Uri.parse("android.resource://com.livingpresence.inner.circle.squared/mipmap/ic_launcher"))
                 .build(),
         )
-        .build()
+    if (mimeType != null) builder.setMimeType(mimeType)
+    return builder.build()
+}
+
+private fun titleFor(url: String): String {
+    val eventNumber = Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)
+    return if (eventNumber != null) "Event $eventNumber" else "Inner Circle Squared"
 }

@@ -1,0 +1,10 @@
+language = Objective-C
+package = cnames.supported
+
+headers = AVPlayerBridge.h
+headerFilter = AVPlayerBridge.h
+
+sources = AVPlayerBridge.m
+
+compilerOpts = -framework AVFAudio -framework AVFoundation -framework CoreMedia -framework Foundation -framework UIKit
+linkerOpts = -framework AVFAudio -framework AVFoundation -framework CoreMedia -framework Foundation -framework UIKit
