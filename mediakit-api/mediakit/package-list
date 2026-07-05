@@ -2,10 +2,14 @@ $dokka.format:html-v1
 $dokka.linkExtension:html
 $dokka.location:com.livingpresence.mediakit////PointingToDeclaration/mediakit/com.livingpresence.mediakit/index.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog.Companion///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/index.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_CACHE_TTL/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-c-a-c-h-e_-t-t-l.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_MAX_CONCURRENCY/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-m-a-x_-c-o-n-c-u-r-r-e-n-c-y.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_MAX_PROBE_ATTEMPTS/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-m-a-x_-p-r-o-b-e_-a-t-t-e-m-p-t-s.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_RETRY_BACKOFF/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-r-e-t-r-y_-b-a-c-k-o-f-f.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/index.html
-$dokka.location:com.livingpresence.mediakit/EventCatalog/EventCatalog/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-event-catalog.html
-$dokka.location:com.livingpresence.mediakit/EventCatalog/loadEvents/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/load-events.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/EventCatalog/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig#kotlin.Int#[Error type: Unresolved type for Duration]#[Error type: Unresolved type for TimeSource]#kotlin.Int#[Error type: Unresolved type for Duration]/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-event-catalog.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/invalidate/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/invalidate.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/loadEvents/#kotlin.Boolean/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/load-events.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog/probeEvent/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/probe-event.html
 $dokka.location:com.livingpresence.mediakit/EventInfo///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/index.html
 $dokka.location:com.livingpresence.mediakit/EventInfo/EventInfo/#kotlin.Int#kotlin.Boolean#kotlin.Long/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/-event-info.html

@@ -2,7 +2,7 @@
 <html class="no-js">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
-    <title>loadEvents</title>
+    <title>invalidate</title>
     <link href="../../../images/logo-icon.svg" rel="icon" type="image/svg">
     <script>var pathToRoot = "../../../";</script>
     <script>document.documentElement.classList.replace("no-js","js");</script>
@@ -61,12 +61,12 @@
                 <div class="sidebar--inner" id="sideMenu"></div>
             </div>
             <div id="main">
-<div class="main-content" data-page-type="member" id="content" pageIds="mediakit::com.livingpresence.mediakit/EventCatalog/loadEvents/#kotlin.Boolean/PointingToDeclaration//-983147036">
-  <div class="breadcrumbs"><a href="../../../index.html">mediakit</a><span class="delimiter">/</span><a href="../index.html">com.livingpresence.mediakit</a><span class="delimiter">/</span><a href="index.html">EventCatalog</a><span class="delimiter">/</span><span class="current">loadEvents</span></div>
+<div class="main-content" data-page-type="member" id="content" pageIds="mediakit::com.livingpresence.mediakit/EventCatalog/invalidate/#/PointingToDeclaration//-983147036">
+  <div class="breadcrumbs"><a href="../../../index.html">mediakit</a><span class="delimiter">/</span><a href="../index.html">com.livingpresence.mediakit</a><span class="delimiter">/</span><a href="index.html">EventCatalog</a><span class="delimiter">/</span><span class="current">invalidate</span></div>
   <div class="cover ">
-    <h1 class="cover"><span>load</span><wbr></wbr><span><span>Events</span></span></h1>
+    <h1 class="cover"><span><span>invalidate</span></span></h1>
   </div>
-  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">suspend </span><span class="token keyword">fun </span><a href="load-events.html"><span class="token function">loadEvents</span></a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">forceRefresh<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token operator"> = </span><span class="token boolean">false</span></span></span><span class="token punctuation">)</span><span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><a href="../-event-info/index.html">EventInfo</a><span class="token operator">&gt;</span></div><p class="paragraph">Probe <a href="../-media-kit-config/max-event-number.html">MediaKitConfig.maxEventNumber</a> events in parallel, returning the ones that exist, ordered by event number descending (newest first — matches the prior <code class="lang-kotlin">VideoRepository</code> ordering).</p><p class="paragraph">Returns the cached result if one exists and is younger than <span data-unresolved-link="com.livingpresence.mediakit/EventCatalog/cacheTtl/#/PointingToDeclaration/">cacheTtl</span>, unless <a href="load-events.html">forceRefresh</a> is <code class="lang-kotlin">true</code> (the app's <code class="lang-kotlin">retryLoadingVideos</code> path). The freshly-probed result always replaces the cache, even when empty.</p><h4 class="">Parameters</h4><div class="table"><div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain"><div class="main-subrow keyValue "><div class=""><span class="inline-flex"><div><u><span>force</span><wbr></wbr><span><span>Refresh</span></span></u></div></span></div><div><div class="title"><p class="paragraph">When <code class="lang-kotlin">true</code>, bypass the cache and re-probe the server.</p></div></div></div></div></div></div></div>
+  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">fun </span><a href="invalidate.html"><span class="token function">invalidate</span></a><span class="token punctuation">(</span><span class="token punctuation">)</span></div><p class="paragraph">Drop any cached result. The next <a href="load-events.html">loadEvents</a> call re-probes the server regardless of the TTL. Useful after an error to recover immediately.</p></div></div>
 </div>
       <div class="footer">
         <span class="go-to-top-icon"><a href="#content" id="go-to-top-link"></a></span><span>© 2026 Copyright</span><span
