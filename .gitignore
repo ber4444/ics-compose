@@ -43,5 +43,11 @@ captures/
 .externalNativeBuild
 .cxx
 
+# iOS — the Xcode project is generated from iosApp/project.yml via xcodegen.
+# Only the source (Swift), the project spec, and the generated Info.plist
+# are committed; the .xcodeproj itself is regenerable.
+iosApp/ICSApp.xcodeproj/
+iosApp/ICSApp.xcworkspace/
+
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
