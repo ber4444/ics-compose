@@ -62,6 +62,11 @@ actual fun createHttpClient(): HttpClient = HttpClient(Darwin)
 actual fun eventsPassword(): String = "SECRET"
 
 @Composable
+actual fun loginBackgroundModifier(): Modifier = Modifier.background(
+    Brush.verticalGradient(listOf(Color(0xFF1A237E), Color(0xFFB71C1C))),
+)
+
+@Composable
 actual fun PlatformPlayerScreen(
     url: String,
     onClose: () -> Unit,

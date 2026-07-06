@@ -16,11 +16,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.js.Js
 import kotlinx.browser.window
 
-actual fun createHttpClient(): HttpClient = HttpClient()
+actual fun createHttpClient(): HttpClient = HttpClient(Js)
 
 actual fun eventsPassword(): String = "SECRET"
+
+@Composable
+actual fun loginBackgroundModifier(): Modifier = Modifier
 
 @Composable
 actual fun PlatformPlayerScreen(

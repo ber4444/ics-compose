@@ -42,3 +42,12 @@ expect fun LiveEventThumbnail(
  */
 fun getUrl(eventNumber: Int): String =
     MediaKitConfig.Default.eventUrl(eventNumber)
+
+/**
+ * Background for the login screen. Android renders the `background_image`
+ * resource (works there); wasmJs uses a gradient because decoding the raster
+ * JPEG via `Image(painterResource(...))` throws an unrecoverable exception under
+ * Kotlin/Wasm (a Skiko image-decode crash on this asset that kills composition).
+ */
+@Composable
+expect fun loginBackgroundModifier(): Modifier
