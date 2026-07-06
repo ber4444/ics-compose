@@ -62,6 +62,11 @@ actual fun createHttpClient(): HttpClient = HttpClient(Darwin)
 actual fun eventsPassword(): String = "SECRET"
 
 @Composable
+actual fun loginBackgroundModifier(): Modifier = Modifier.background(
+    Brush.verticalGradient(listOf(Color(0xFF1A237E), Color(0xFFB71C1C))),
+)
+
+@Composable
 actual fun PlatformPlayerScreen(
     url: String,
     onClose: () -> Unit,
@@ -117,11 +122,11 @@ actual fun PlatformPlayerScreen(
         ) {
             // AVPlayerLayer interop: a plain UIView whose layer hosts the
             // bridge's player sublayer (added + sized in `update`).
-            // videoGravity = aspect-fit mirrors the Android default. NOTE:
-            // CMP's UIKitView renders above the Compose layer, so the control
-            // overlays below may render behind the video at runtime — the known
-            // CMP interop sharp edge flagged in plan.md ("UIKitView z-ordering").
-            // Compile-clean; runtime z-order is a follow-up spike.
+            // videoGravity = aspect-fit mirrors the Android default. The bridge's
+            // layoutInSuperview lowers the host view's layer zPosition so the
+            // native view renders *below* the Compose surface — without that, CMP's
+            // UIKitView places the video above the control overlays (the known
+            // z-order sharp edge), making them untappable.
             UIKitView(
                 factory = { UIView() },
                 update = { view -> bridge.layoutInSuperview(view) },

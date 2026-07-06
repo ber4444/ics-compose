@@ -1,10 +1,8 @@
 package com.livingpresence.inner.circle.squared
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
@@ -45,9 +42,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.savedstate.read
-import com.livingpresence.inner.circle.squared.generated.resources.Res
-import com.livingpresence.inner.circle.squared.generated.resources.background_image
-import org.jetbrains.compose.resources.painterResource
 
 private object AppRoute {
     const val Login = "login"
@@ -128,16 +122,13 @@ fun App() {
 
 @Composable
 private fun rememberMainViewModel(): MainViewModel {
-    val owner = checkNotNull(LocalViewModelStoreOwner.current)
     val videoRepository = remember { VideoRepository(createHttpClient()) }
-    return viewModel(
-        viewModelStoreOwner = owner,
-        factory = viewModelFactory {
-            initializer {
-                MainViewModel(videoRepository, eventsPassword())
-            }
-        },
-    )
+    // NOTE: previously used lifecycle-viewmodel-compose's `viewModel()` against a
+    // manual ViewModelStoreOwner. That factory requires a SavedStateRegistryOwner
+    // and threw an unrecoverable exception under Kotlin/Wasm (swallowed by the
+    // coroutine handler → blank screen). MainViewModel holds no SavedState, so a
+    // plain `remember` is correct and works across all targets.
+    return remember(videoRepository) { MainViewModel(videoRepository, eventsPassword()) }
 }
 
 @Composable
@@ -160,21 +151,14 @@ fun LoginScreen(
     onShowGallery: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    val backgroundPainter = painterResource(Res.drawable.background_image)
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .clipToBounds(),
+            .clipToBounds()
+            .then(loginBackgroundModifier()),
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = backgroundPainter,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()

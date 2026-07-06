@@ -46,7 +46,9 @@
 // Item lifecycle
 - (void)replaceCurrentItemWithItem:(AVPlayerItem *)item;
 
-// Resizes the player layer to the given UIView's bounds. Call from layout.
+// Resizes the player layer to the given UIView's bounds, and lowers that view's
+// layer zPosition so it renders below the Compose surface (controls on top).
+// Call from layout.
 - (void)layoutInSuperview:(UIView *)superview;
 
 @end

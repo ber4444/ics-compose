@@ -144,3 +144,12 @@ falling back to `SECRET` for dev/CI — it is not in source:
 # gradle.properties or ~/.gradle/gradle.properties
 icsEventPassword=your-password
 ```
+
+The debug demo menu can offer a portrait/vertical clip for exercising the
+vertical-video path (resize matrix, PiP clamping, orientation). No durable
+public vertical test stream exists, so the URL comes from an optional gradle
+property and the menu entry is hidden until it's set:
+```
+# gradle.properties, or -P at build time
+icsVerticalDemoUrl=https://host/portrait.mp4
+```
