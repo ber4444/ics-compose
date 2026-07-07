@@ -107,9 +107,23 @@ The load-bearing design calls and the reasoning behind them. Full detail in
 
 ### iOS
 ```bash
-./gradlew :composeApp:compileKotlinIosSimulatorArm64   # Compose framework incl. the AVPlayer cinterop
+./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64   # Compose framework incl. the AVPlayer cinterop
 ```
-(No Xcode app project is checked in yet; the target builds as a Compose framework.)
+A runnable SwiftUI host app lives in `iosApp/` (generated from
+`project.yml` via `xcodegen`):
+```bash
+cd iosApp && xcodegen generate
+xcodebuild -project ICSApp.xcodeproj -scheme ICSApp \
+    -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' build
+```
+
+> **cinterop note.** Kotlin 2.3.x's cinterop parses the def's `sources =
+> AVPlayerBridge.m` but does not compile the Obj-C implementation into the
+> framework, so `_OBJC_CLASS_$_AVPlayerBridge` stays undefined at link time.
+> The Gradle build works around this by compiling `AVPlayerBridge.m` to LLVM
+> bitcode (`.bc`) and injecting it into the cinterop klib's `natives/`
+> directory, where the Kotlin/Native linker picks it up. No manual steps
+> needed — `linkDebugFrameworkIosSimulatorArm64` handles it end-to-end.
 
 ### Web (Wasm)
 ```bash
@@ -119,7 +133,7 @@ The load-bearing design calls and the reasoning behind them. Full detail in
 To serve the production build from a static server:
 ```bash
 ./gradlew wasmJsBrowserDistribution
-# serve composeApp/build/dist/wasmJs/productionExecutable/wasmJsBrowserDistribution
+# serve composeApp/build/dist/wasmJs/productionExecutable/
 ```
 
 ## Tests & SDK discipline
