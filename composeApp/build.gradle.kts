@@ -125,6 +125,9 @@ kotlin {
         tasks.named("compileKotlin${iosTarget.targetName.replaceFirstChar { it.uppercase() }}").configure {
             dependsOn(injectTask)
         }
+        tasks.matching { it.name == "commonizeCInterop" || it.name.endsWith("Cinterop-avplayerKlib") }.configureEach {
+            dependsOn(injectTask)
+        }
     }
 
     @OptIn(ExperimentalWasmDsl::class)
