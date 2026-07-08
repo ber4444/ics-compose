@@ -366,7 +366,7 @@ class EventCatalogTest {
                 url.contains("event3") -> 3
                 else -> 0
             }
-            val n = attempts.getOrDefault(eventNum, 0)
+            val n = attempts[eventNum] ?: 0
             attempts[eventNum] = n + 1
             when {
                 eventNum == 1 && n == 0 ->
@@ -397,7 +397,7 @@ class EventCatalogTest {
                 url.contains("event3") -> 3
                 else -> 0
             }
-            val n = attempts.getOrDefault(eventNum, 0)
+            val n = attempts[eventNum] ?: 0
             attempts[eventNum] = n + 1
             when {
                 eventNum == 2 && n == 0 -> throw IllegalStateException("transient blip")
@@ -442,7 +442,7 @@ class EventCatalogTest {
                 url.contains("event3") -> 3
                 else -> 0
             }
-            attempts[eventNum] = attempts.getOrDefault(eventNum, 0) + 1
+            attempts[eventNum] = (attempts[eventNum] ?: 0) + 1
             when {
                 eventNum == 1 -> HttpStatusCode.NotFound to "404" // genuinely missing
                 eventNum != 0 -> HttpStatusCode.OK to boundedChunklist(4, live = false)
@@ -471,7 +471,7 @@ class EventCatalogTest {
                 url.contains("event3") -> 3
                 else -> 0
             }
-            attempts[eventNum] = attempts.getOrDefault(eventNum, 0) + 1
+            attempts[eventNum] = (attempts[eventNum] ?: 0) + 1
             when {
                 eventNum == 2 -> HttpStatusCode.InternalServerError to "boom" // always fails
                 eventNum != 0 -> HttpStatusCode.OK to boundedChunklist(4, live = false)
