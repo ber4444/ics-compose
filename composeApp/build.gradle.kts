@@ -2,22 +2,30 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
-    alias(libs.plugins.androidApplication)
+    id("com.android.kotlin.multiplatform.library")
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.dokka)
-    alias(libs.plugins.kover)
 }
 
 kotlin {
     jvmToolchain(17)
 
-    androidTarget {
+    android {
+        namespace = "com.livingpresence.inner.circle.squared.shared"
+        compileSdk = 36
+        minSdk = 23
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
+        withHostTestBuilder {
+            // isIncludeAndroidResources = true  (moved to testOptions if needed or omitted for now)
+        }
     }
+
+    // testOptions are typically not available directly in the simplified KMP DSL,
+    // so we'll start with just withHostTestBuilder.
 
     val iosTargets = if (System.getProperty("os.name").startsWith("Mac OS X")) {
         listOf(
@@ -75,17 +83,18 @@ kotlin {
                 check(clang.exists()) { "Konan clang not found at $clang — install Kotlin/Native dependencies first" }
                 val outFile = bitcodeFile.get().asFile
                 outFile.parentFile.mkdirs()
-                exec {
-                    commandLine(
-                        clang.absolutePath,
-                        "-c", "-emit-llvm",
-                        source.absolutePath,
-                        "-o", outFile.absolutePath,
-                        "-isysroot", sdk,
-                        "-target", target,
-                        "-fobjc-arc",
-                        "-I${cinteropDir.absolutePath}",
-                    )
+                ProcessBuilder(
+                    clang.absolutePath,
+                    "-c", "-emit-llvm",
+                    source.absolutePath,
+                    "-o", outFile.absolutePath,
+                    "-isysroot", sdk,
+                    "-target", target,
+                    "-fobjc-arc",
+                    "-I${cinteropDir.absolutePath}"
+                ).redirectErrorStream(true).start().apply {
+                    val output = inputStream.bufferedReader().readText()
+                    if (waitFor() != 0) error("Clang failed: $output")
                 }
             }
         }
@@ -176,7 +185,7 @@ kotlin {
             implementation(libs.ktor.client.darwin)
         }
         // Robolectric unit tests for Android player/resize logic.
-        val androidUnitTest by getting {
+        val androidHostTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.media3.test.utils.robolectric)
@@ -189,72 +198,11 @@ kotlin {
     }
 }
 
-android {
-    namespace = "com.livingpresence.inner.circle.squared"
-    compileSdk = 36
-
-    sourceSets["main"].manifest.srcFile("src/main/AndroidManifest.xml")
-    sourceSets["main"].res.srcDirs("src/main/res")
-
-    defaultConfig {
-        applicationId = "com.livingpresence.inner.circle.squared"
-        minSdk = 23
-        targetSdk = 36
-        versionCode = 7009
-        versionName = "8.0.7"
-
-        // Login-gate password, sourced from a gradle/local property so it's not
-        // in source. Falls back to "SECRET" so dev + CI builds without the
-        // property still work.
-        val eventsPassword = (project.findProperty("icsEventsPassword") as String?)
-            ?: "SECRET"
-        buildConfigField("String", "EVENTS_PASSWORD", "\"$eventsPassword\"")
-
-        // Optional portrait demo clip URL (debug demo menu). No durable public
-        // vertical test stream exists, so this defaults empty → the menu entry
-        // is hidden until you point it at a portrait clip you host.
-        //   -PicsVerticalDemoUrl=https://host/portrait.mp4
-        val verticalDemoUrl = (project.findProperty("icsVerticalDemoUrl") as String?) ?: ""
-        buildConfigField("String", "VERTICAL_DEMO_URL", "\"$verticalDemoUrl\"")
-    }
-
-    buildFeatures {
-        buildConfig = true
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
-}
-
 compose.resources {
     publicResClass = true
     packageOfResClass = "com.livingpresence.inner.circle.squared.generated.resources"
 }
 
 dependencies {
-    debugImplementation(compose.uiTooling)
+    // Debug dependencies moved to androidApp or runtime classpath
 }

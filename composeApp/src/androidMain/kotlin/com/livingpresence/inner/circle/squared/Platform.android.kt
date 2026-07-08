@@ -107,7 +107,7 @@ private val SliderThumbRadius = 10.dp
 
 actual fun createHttpClient(): HttpClient = HttpClient()
 
-actual fun eventsPassword(): String = com.livingpresence.inner.circle.squared.BuildConfig.EVENTS_PASSWORD
+actual fun eventsPassword(): String = HostBridge.eventsPassword()
 
 @Composable
 actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
@@ -299,7 +299,7 @@ private fun ExoPlayerScreen(
     )
 
     // Immersive mode: hide system bars while the player is on screen (not in PiP).
-    ImmersiveSystemBars(active = MainActivity.InPipState.value.let { !it })
+    ImmersiveSystemBars(active = HostBridge.inPipState.value.let { !it })
 
     // Report video size + playing state for PiP params, and collapse controls in PiP.
     val pipController = LocalPipController.current
@@ -310,7 +310,7 @@ private fun ExoPlayerScreen(
         }
         pipController?.setPlaying(state.isPlaying)
     }
-    if (MainActivity.InPipState.value) {
+    if (HostBridge.inPipState.value) {
         showVideoControls = false
         showStats = false
     }
@@ -320,7 +320,7 @@ private fun ExoPlayerScreen(
     // HLS, disabling the video renderer alone would keep downloading full-bitrate
     // segments; constraining track selection to the ladder's audio-only tier
     // cuts the stream to ~51 kbps. On return to foreground, restore video.
-    BackgroundAudioPolicy(player = player, isVideoVisible = !MainActivity.InPipState.value)
+    BackgroundAudioPolicy(player = player, isVideoVisible = !HostBridge.inPipState.value)
 
     val playbackError = state.playbackError
     Box(
@@ -416,8 +416,8 @@ private fun ExoPlayerScreen(
                             CaptionToggleButton(controller = captionController)
                             // Debug-only demo-sources menu (Apple bipbop ladder +
                             // a vertical sample + the production events), proving
-                            // the player isn't hardwired to one server (FU-4).
-                            if (com.livingpresence.inner.circle.squared.BuildConfig.DEBUG) {
+                            // Demo vertical stream injection
+                            if (HostBridge.isDebug()) {
                                 DemoSourcesMenu(
                                     activeUrl = currentLoadUrl(loadRequest),
                                     onDemoSourceSelected = onSelectDemoSource,

@@ -1,5 +1,5 @@
 [versions]
-agp = "8.9.3"
+agp = "9.2.1"
 kotlin = "2.3.20"
 compose = "1.10.6"
 compose-multiplatform = "1.10.3"
@@ -15,7 +15,7 @@ ktor = "3.4.2"
 media3 = "1.10.0"
 androidx-work = "2.10.0"
 kotlinx-serialization = "1.8.0"
-dokka = "1.9.20"
+dokka = "2.2.0"
 kover = "0.9.1"
 binary-compatibility-validator = "0.16.3"
 # On-device speech recognition (Phase 8 transcription). The ~50 MB acoustic
@@ -34,6 +34,7 @@ navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-co
 compose-ui = { module = "androidx.compose.ui:ui", version.ref = "compose" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "compose" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "compose" }
+compose-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "compose" }
 compose-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "compose" }
 compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "compose-material3" }
 material-icons-core = { module = "androidx.compose.material:material-icons-core", version.ref = "compose-icons" }
@@ -63,6 +64,7 @@ vosk-android = { module = "com.alphacephei:vosk-android", version.ref = "vosk" }
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
+kotlinMultiplatformAndroidLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
