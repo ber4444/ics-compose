@@ -97,6 +97,27 @@ The load-bearing design calls and the reasoning behind them. Full detail in
 - **Downloads target a concrete rendition** — not the `data:` ladder — so cache
   keys stay stable and stored content sidesteps chunklist rotation.
 
+## TODO: deferred from the AGP 9 migration
+
+The supported Gradle 9/AGP 9 migration is planned in
+[`plan.md`](./plan.md) under “Standalone PR plan — Gradle 9 and AGP 9
+migration.” The migration PR intentionally leaves these follow-ups out:
+
+- [ ] Rename `:composeApp` to `:shared` and extract a separate `:webApp`
+  (JetBrains' recommended full platform restructure). The minimum supported
+  split keeps iOS and Wasm in `:composeApp`.
+- [ ] Revisit the ordinary dependency upgrades grouped into Dependabot PR #33.
+  AndroidX, Media3, Ktor, coroutines, Metro, Vosk, and other runtime updates
+  should be reviewed in smaller dependency-only PRs.
+- [ ] Extract repeated build configuration into convention plugins after the
+  migrated module boundaries have stabilized.
+- [ ] Refresh checked-in or developer-local Android Studio run configurations
+  to target `:androidApp`; this is IDE metadata, not part of the Gradle
+  migration itself.
+- [ ] Consider a later full AGP-defaults/R8 audit with release smoke testing.
+  The migration adopts defaults needed for AGP 9, but does not redesign keep
+  rules, shrinking policy, packaging, or release delivery.
+
 ## Building
 
 ### Android

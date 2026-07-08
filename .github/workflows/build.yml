@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: debug-apk
-          path: composeApp/build/outputs/apk/debug/*.apk
+          path: androidApp/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
 
   wasm:
@@ -92,15 +92,15 @@ jobs:
 
       # :mediakit common tests (pure-Kotlin core) + :composeApp Robolectric unit tests.
       - name: Run unit tests
-        run: ./gradlew --no-daemon :mediakit:test :composeApp:testDebugUnitTest
+        run: ./gradlew --no-daemon :mediakit:testAndroidHostTest :composeApp:testAndroidHostTest
 
       # Binary-compatibility: :mediakit's public API must match the checked-in snapshot.
       - name: Validate SDK public API
         run: ./gradlew --no-daemon :mediakit:apiCheck
 
-      # Kover coverage report (informational; a gate can be added once a baseline is set).
-      - name: Generate coverage report
-        run: ./gradlew --no-daemon koverXmlReport
+      # Kover coverage report disabled as Kover is currently incompatible with KMP AGP 9
+      # - name: Generate coverage report
+      #   run: ./gradlew --no-daemon koverXmlReport
 
       - name: Upload test + coverage reports
         if: always()
@@ -110,7 +110,6 @@ jobs:
           path: |
             composeApp/build/reports/tests/
             mediakit/build/reports/tests/
-            build/reports/kover/
           if-no-files-found: ignore
 
   docs:
@@ -132,7 +131,7 @@ jobs:
           cache: gradle
 
       - name: Generate Dokka HTML
-        run: ./gradlew --no-daemon :mediakit:dokkaHtml
+        run: ./gradlew --no-daemon :mediakit:dokkaGenerateHtml
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'

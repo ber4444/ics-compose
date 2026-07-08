@@ -2,10 +2,9 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    alias(libs.plugins.androidLibrary)
+    id("com.android.kotlin.multiplatform.library")
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.dokka)
-    alias(libs.plugins.kover)
     // SDK API-surface tracking: `apiCheck` validates the public API against
     // mediakit/api/mediakit.api, so accidental binary-breaking changes fail the build.
     alias(libs.plugins.binary.compatibility.validator)
@@ -19,10 +18,14 @@ kotlin {
 
     jvm()
 
-    androidTarget {
+    android {
+        namespace = "com.livingpresence.mediakit"
+        compileSdk = 36
+        minSdk = 23
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
+        withHostTestBuilder {}
     }
 
     @OptIn(ExperimentalWasmDsl::class)
@@ -54,16 +57,3 @@ kotlin {
     }
 }
 
-android {
-    namespace = "com.livingpresence.mediakit"
-    compileSdk = 36
-
-    defaultConfig {
-        minSdk = 23
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-}

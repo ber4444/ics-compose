@@ -78,7 +78,7 @@ internal enum class DemoSource(val label: String, val url: String, val mimeAware
  * clip you control: `-PicsVerticalDemoUrl=https://host/portrait.mp4`.
  */
 private val VERTICAL_URL: String =
-    com.livingpresence.inner.circle.squared.BuildConfig.VERTICAL_DEMO_URL
+    HostBridge.verticalDemoUrl()
 
 /**
  * Debug-only menu offering the [DemoSource]s plus a "Production" entry that
