@@ -150,11 +150,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation("org.jetbrains.compose.runtime:runtime:1.10.3")
-            implementation("org.jetbrains.compose.foundation:foundation:1.10.3")
-            implementation("org.jetbrains.compose.material3:material3:1.10.3")
-            implementation("org.jetbrains.compose.ui:ui:1.10.3")
-            implementation("org.jetbrains.compose.components:components-resources:1.10.3")
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.lifecycle.viewmodel)
             implementation(libs.lifecycle.viewmodel.compose)
@@ -164,7 +164,7 @@ kotlin {
             implementation(project(":mediakit"))
         }
         androidMain.dependencies {
-            implementation("org.jetbrains.compose.ui:ui-tooling-preview:1.10.3")
+            implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.android)
             implementation(libs.media3.exoplayer)
@@ -190,8 +190,9 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation(libs.media3.test.utils.robolectric)
                 implementation(libs.kotlinx.coroutines.test)
-                implementation("org.jetbrains.compose.ui:ui-test:1.10.3")
-                implementation("org.jetbrains.compose.ui:ui-tooling:1.10.3")
+                @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+                implementation(compose.uiTest)
+                implementation(compose.uiTooling)
             }
         }
     }
