@@ -48,3 +48,4 @@ public data class MediaKitConfig(
         public val Default: MediaKitConfig = MediaKitConfig(DEFAULT_HOST)
     }
 }
+// CodeQL trigger
