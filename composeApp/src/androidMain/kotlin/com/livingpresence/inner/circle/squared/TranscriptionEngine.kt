@@ -386,12 +386,11 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                     rawPath
                 }
                 val outFile = File(dest, relativePath)
-                // Zip Slip guard: a malicious archive entry name may contain "../"
-                // segments that resolve outside [dest]. Reject anything whose
-                // canonical path is not contained within the target directory.
-                if (outFile.canonicalPath != destCanonicalPath &&
-                    !outFile.canonicalPath.startsWith(destCanonicalPath + File.separator)
-                ) {
+                if (entry.name.contains("..")) {
+                    throw SecurityException("Zip entry contains path traversal characters: $rawPath")
+                }
+                val destCanonicalDir = destCanonicalPath + File.separator
+                if (!outFile.canonicalPath.startsWith(destCanonicalDir) && outFile.canonicalPath != destCanonicalPath) {
                     throw SecurityException("Zip entry escapes target directory: $rawPath")
                 }
                 outFile.parentFile?.mkdirs()
