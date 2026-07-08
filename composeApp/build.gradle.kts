@@ -19,12 +19,14 @@ kotlin {
         }
     }
 
-    // iOS targets (Phase 7): AVPlayer-backed playback in iosMain. Both ARM64
-    // device and simulator share one iosMain intermediate source set.
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64(),
-    ).forEach { iosTarget ->
+    val iosTargets = if (System.getProperty("os.name").startsWith("Mac OS X")) {
+        listOf(
+            iosArm64(),
+            iosSimulatorArm64(),
+        )
+    } else emptyList()
+    
+    iosTargets.forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
