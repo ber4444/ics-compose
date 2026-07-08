@@ -131,7 +131,7 @@ jobs:
           cache: gradle
 
       - name: Generate Dokka HTML
-        run: ./gradlew --no-daemon :mediakit:dokkaHtml
+        run: ./gradlew --no-daemon :mediakit:dokkaGenerateHtml
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main'
