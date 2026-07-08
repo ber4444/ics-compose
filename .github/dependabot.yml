@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Gradle: version catalog, build scripts, and the AGP/Kotlin/Compose/Dokka plugin
+  # classpath. Grouped into a single weekly PR to keep the noise down.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      gradle:
+        patterns:
+          - "*"
+    ignore:
+      # jackson reaches this project only through build-time tooling — Dokka doc
+      # generation and the Android Gradle Plugin — and is never packaged into the
+      # shipped app (absent from :composeApp:releaseRuntimeClasspath). Dokka through
+      # 2.1.0 pins jackson-databind 2.12.7.1 and calls TypeFactory(LRUMap), a
+      # constructor removed in jackson 2.16, while the databind advisory is only
+      # patched in 2.18.8 — so no single version satisfies both Dokka and the CVE.
+      # Suppress update PRs for it; the matching alerts are dismissed as not-affected.
+      # See the buildscript block in build.gradle.kts for the rationale.
+      - dependency-name: "com.fasterxml.jackson.core:jackson-databind"
+      - dependency-name: "com.fasterxml.jackson.core:jackson-core"
+
+  # GitHub Actions used by the CI workflows (checkout, setup-java, codeql, etc.).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
