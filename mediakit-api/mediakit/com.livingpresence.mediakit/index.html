@@ -1,67 +1,109 @@
 <!DOCTYPE html>
-<html class="no-js">
+<html class="no-js" lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
     <title>com.livingpresence.mediakit</title>
     <link href="../../images/logo-icon.svg" rel="icon" type="image/svg">
-    <script>var pathToRoot = "../../";</script>
-    <script>document.documentElement.classList.replace("no-js","js");</script>
+        <script>var pathToRoot = "../../";</script>
+    <script>document.documentElement.classList.replace("no-js", "js");</script>
     <script>const storage = localStorage.getItem("dokka-dark-mode")
-    if (storage == null) {
+      if (storage == null) {
         const osDarkSchemePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
         if (osDarkSchemePreferred === true) {
-            document.getElementsByTagName("html")[0].classList.add("theme-dark")
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
         }
-    } else {
+      } else {
         const savedDarkMode = JSON.parse(storage)
-        if(savedDarkMode === true) {
-            document.getElementsByTagName("html")[0].classList.add("theme-dark")
+        if (savedDarkMode === true) {
+          document.getElementsByTagName("html")[0].classList.add("theme-dark")
         }
-    }
+      }
     </script>
-<script type="text/javascript" src="https://unpkg.com/kotlin-playground@1/dist/playground.min.js" async="async"></script>
 <script type="text/javascript" src="../../scripts/sourceset_dependencies.js" async="async"></script>
 <link href="../../styles/style.css" rel="Stylesheet">
 <link href="../../styles/main.css" rel="Stylesheet">
 <link href="../../styles/prism.css" rel="Stylesheet">
 <link href="../../styles/logo-styles.css" rel="Stylesheet">
-<link href="../../styles/font-jb-sans-auto.css" rel="Stylesheet">
-<script type="text/javascript" src="../../scripts/clipboard.js" async="async"></script>
+<link href="../../ui-kit/ui-kit.min.css" rel="Stylesheet">
+<script type="text/javascript" src="../../scripts/safe-local-storage_blocking.js"></script>
 <script type="text/javascript" src="../../scripts/navigation-loader.js" async="async"></script>
 <script type="text/javascript" src="../../scripts/platform-content-handler.js" async="async"></script>
 <script type="text/javascript" src="../../scripts/main.js" defer="defer"></script>
 <script type="text/javascript" src="../../scripts/prism.js" async="async"></script>
-<script type="text/javascript" src="../../scripts/symbol-parameters-wrapper_deferred.js" defer="defer"></script>
+<script type="text/javascript" src="../../ui-kit/ui-kit.min.js" defer="defer"></script>
 </head>
 <body>
-    <div class="root">
-<nav class="navigation" id="navigation-wrapper">
-    <div class="navigation--inner">
-        <div class="navigation-title">
-            <button class="menu-toggle" id="menu-toggle" type="button">toggle menu</button>
-            <div class="library-name">
-                    <a class="library-name--link" href="../../index.html">
-                            mediakit
-                    </a>
+<div class="root">
+    <header class="navigation theme-dark" id="navigation-wrapper" role="banner">
+            <a class="library-name--link" href="../../index.html" tabindex="1">
+                    mediakit
+            </a>
+        <button class="navigation-controls--btn navigation-controls--btn_toc ui-kit_mobile-only" id="toc-toggle"
+                type="button">Toggle table of contents
+        </button>
+        <div class="navigation-controls--break ui-kit_mobile-only"></div>
+        <div class="library-version" id="library-version">
+        </div>
+        <div class="navigation-controls">
+        <ul class="filter-section filter-section_loading" id="filter-section" aria-label="Target filter">
+                <button class="platform-tag platform-selector common-like" data-active="" aria-pressed="true"
+                        data-filter=":mediakit/commonMain">common</button>
+            <div class="dropdown filter-section--dropdown" data-role="dropdown" id="filter-section-dropdown">
+                <button class="button button_dropdown filter-section--dropdown-toggle" role="combobox"
+                        data-role="dropdown-toggle"
+                        aria-controls="platform-tags-listbox"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-label="Toggle source sets"
+                ></button>
+                <ul role="listbox" id="platform-tags-listbox" class="dropdown--list" data-role="dropdown-listbox" aria-label="Target filter">
+                    <div class="dropdown--header"><span>Target filter</span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close target filter">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                        <li role="option" class="dropdown--option platform-selector-option common-like" tabindex="0">
+                            <label class="checkbox">
+                                <input type="checkbox" class="checkbox--input" id=":mediakit/commonMain"
+                                       data-filter=":mediakit/commonMain"/>
+                                <span class="checkbox--icon"></span>
+                                common
+                            </label>
+                        </li>
+                </ul>
+                <div class="dropdown--overlay"></div>
             </div>
-            <div class="library-version">
+        </ul>
+            <button class="navigation-controls--btn navigation-controls--btn_theme" id="theme-toggle-button"
+                    type="button">Switch theme
+            </button>
+            <div class="navigation-controls--btn navigation-controls--btn_search" id="searchBar" role="button">Search in
+                API
             </div>
         </div>
-        <div class="filter-section" id="filter-section">
-                <button class="platform-tag platform-selector common-like" data-active="" data-filter=":mediakit:dokkaHtml/commonMain">common</button>
-        </div>
-    </div>
-    <div class="navigation-controls">
-        <button class="navigation-controls--btn navigation-controls--theme" id="theme-toggle-button" type="button">switch theme</button>
-        <div class="navigation-controls--btn navigation-controls--search" id="searchBar" role="button">search in API</div>
-    </div>
-</nav>
-        <div id="container">
-            <div class="sidebar" id="leftColumn">
-                <div class="sidebar--inner" id="sideMenu"></div>
+    </header>
+    <div id="container">
+        <nav id="leftColumn" class="sidebar" data-item-type="SECTION" data-item-config='{"defaultSize": 280, "minSize": 200, "maxSize": 400}'>
+            <a class="toc--skip-link" href="#main">Skip to content</a>
+            <div class="dropdown theme-dark_mobile" data-role="dropdown" id="toc-dropdown">
+                <ul role="listbox" id="toc-listbox" class="dropdown--list dropdown--list_toc-list"
+                    data-role="dropdown-listbox" aria-label="Table of contents">
+                    <div class="dropdown--header">
+                            <span>
+                                    mediakit
+                            </span>
+                        <button class="button" data-role="dropdown-toggle" aria-label="Close table of contents">
+                            <i class="ui-kit-icon ui-kit-icon_cross"></i>
+                        </button>
+                    </div>
+                    <div class="sidebar--inner" id="sideMenu"></div>
+                </ul>
+                <div class="dropdown--overlay"></div>
             </div>
-            <div id="main">
-<div class="main-content" data-page-type="package" id="content" pageIds="mediakit::com.livingpresence.mediakit////PointingToDeclaration//-983147036">
+        </nav>
+        <div id="resizer" class="resizer" data-item-type="BAR"></div>
+        <div id="main" data-item-type="SECTION" role="main">
+<div class="main-content" data-page-type="package" id="content" pageIds="mediakit::com.livingpresence.mediakit////PointingToDeclaration//1594100157">
   <div class="breadcrumbs"><a href="../../index.html">mediakit</a><span class="delimiter">/</span><span class="current">com.livingpresence.mediakit</span></div>
   <div class="cover ">
     <h1 class="cover"><span><span>Package-level</span></span> <span><span>declarations</span></span></h1>
@@ -70,138 +112,138 @@
     <div class="tabs-section" tabs-section="tabs-section"><button class="section-tab" data-active="" data-togglable="TYPE">Types</button></div>
     <div class="tabs-section-body">
       <div data-togglable="TYPE">
-        <h2 class="">Types</h2>
-        <div class="table"><a data-name="-979328046%2FClasslikes%2F-983147036" anchor-label="EventCatalog" id="-979328046%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+        <h2 class="tableheader">Types</h2>
+        <div class="table"><a data-name="-979328046%2FClasslikes%2F1594100157" anchor-label="EventCatalog" id="-979328046%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-event-catalog/index.html"><span>Event</span><wbr></wbr><span><span>Catalog</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-979328046%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-979328046%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">class </span><a href="-event-catalog/index.html">EventCatalog</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">httpClient<span class="token operator">: </span><span data-unresolved-link="/&amp;lt;Error class: unknown class&amp;gt;///PointingToDeclaration/">&lt;Error class: unknown class&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">config<span class="token operator">: </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token operator"> = </span>MediaKitConfig.Default<span class="token punctuation">, </span></span><span class="parameter ">maxConcurrency<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_CONCURRENCY<span class="token punctuation">, </span></span><span class="parameter ">cacheTtl<span class="token operator">: </span><span data-unresolved-link="/&amp;lt;Error class: unknown class&amp;gt;///PointingToDeclaration/">&lt;Error class: unknown class&gt;</span><span class="token operator"> = </span>DEFAULT_CACHE_TTL<span class="token punctuation">, </span></span><span class="parameter ">timeSource<span class="token operator">: </span><span data-unresolved-link="/&amp;lt;Error class: unknown class&amp;gt;///PointingToDeclaration/">&lt;Error class: unknown class&gt;</span><span class="token operator"> = </span>TimeSource.Monotonic<span class="token punctuation">, </span></span><span class="parameter ">maxProbeAttempts<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_PROBE_ATTEMPTS<span class="token punctuation">, </span></span><span class="parameter ">retryBackoff<span class="token operator">: </span><span data-unresolved-link="/&amp;lt;Error class: unknown class&amp;gt;///PointingToDeclaration/">&lt;Error class: unknown class&gt;</span><span class="token operator"> = </span>DEFAULT_RETRY_BACKOFF</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Probes the event streams and returns those that exist, with live/duration metadata extracted by playlist inspection. Replaces the app's sequential <code class="lang-kotlin">VideoRepository</code> loop with bounded parallelism.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">class </span><a href="-event-catalog/index.html">EventCatalog</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">httpClient<span class="token operator">: </span><span data-unresolved-link="io.ktor.client/HttpClient///PointingToDeclaration/">HttpClient</span><span class="token punctuation">, </span></span><span class="parameter ">config<span class="token operator">: </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token operator"> = </span>MediaKitConfig.Default<span class="token punctuation">, </span></span><span class="parameter ">maxConcurrency<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_CONCURRENCY<span class="token punctuation">, </span></span><span class="parameter ">cacheTtl<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-duration/index.html">Duration</a><span class="token operator"> = </span>DEFAULT_CACHE_TTL<span class="token punctuation">, </span></span><span class="parameter ">timeSource<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-time-source/index.html">TimeSource</a><span class="token operator"> = </span>TimeSource.Monotonic<span class="token punctuation">, </span></span><span class="parameter ">maxProbeAttempts<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_PROBE_ATTEMPTS<span class="token punctuation">, </span></span><span class="parameter ">retryBackoff<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.time/-duration/index.html">Duration</a><span class="token operator"> = </span>DEFAULT_RETRY_BACKOFF</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Probes the event streams and returns those that exist, with live/duration metadata extracted by playlist inspection. Replaces the app's sequential <code class="lang-kotlin">VideoRepository</code> loop with bounded parallelism.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="-1268181015%2FClasslikes%2F-983147036" anchor-label="EventInfo" id="-1268181015%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="-1268181015%2FClasslikes%2F1594100157" anchor-label="EventInfo" id="-1268181015%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-event-info/index.html"><span>Event</span><wbr></wbr><span><span>Info</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1268181015%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1268181015%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-event-info/index.html">EventInfo</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>eventNumber<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isLive<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>durationMs<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-long/index.html">Long</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">One event's catalog entry. <a href="-event-info/is-live.html">isLive</a> is derived from playlist inspection (absence of <code class="lang-kotlin">#EXT-X-ENDLIST</code>); when <code class="lang-kotlin">false</code> the playlist is bounded and the event is downloadable.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-event-info/index.html">EventInfo</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>eventNumber<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>isLive<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-boolean/index.html">Boolean</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>durationMs<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-long/index.html">Long</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">One event's catalog entry. <span data-unresolved-link="com.livingpresence.mediakit/EventInfo//#kotlin.Int#kotlin.Boolean#kotlin.Long/PointingToCallableParameters(1)/">isLive</span> is derived from playlist inspection (absence of <code class="lang-kotlin">#EXT-X-ENDLIST</code>); when <code class="lang-kotlin">false</code> the playlist is bounded and the event is downloadable.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="-125559351%2FClasslikes%2F-983147036" anchor-label="LadderResolver" id="-125559351%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="-125559351%2FClasslikes%2F1594100157" anchor-label="LadderResolver" id="-125559351%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-ladder-resolver/index.html"><span>Ladder</span><wbr></wbr><span><span>Resolver</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-125559351%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-125559351%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">class </span><a href="-ladder-resolver/index.html">LadderResolver</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">httpClient<span class="token operator">: </span><span data-unresolved-link="/&amp;lt;Error class: unknown class&amp;gt;///PointingToDeclaration/">&lt;Error class: unknown class&gt;</span><span class="token punctuation">, </span></span><span class="parameter ">config<span class="token operator">: </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token operator"> = </span>MediaKitConfig.Default</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Probes an event's sibling renditions just-in-time and resolves a synthesized multivariant (ABR ladder) playlist for them.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">class </span><a href="-ladder-resolver/index.html">LadderResolver</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter ">httpClient<span class="token operator">: </span><span data-unresolved-link="io.ktor.client/HttpClient///PointingToDeclaration/">HttpClient</span><span class="token punctuation">, </span></span><span class="parameter ">config<span class="token operator">: </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token operator"> = </span>MediaKitConfig.Default</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Probes an event's sibling renditions just-in-time and resolves a synthesized multivariant (ABR ladder) playlist for them.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="-1728150517%2FClasslikes%2F-983147036" anchor-label="LadderSynthesizer" id="-1728150517%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="-1728150517%2FClasslikes%2F1594100157" anchor-label="LadderSynthesizer" id="-1728150517%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-ladder-synthesizer/index.html"><span>Ladder</span><wbr></wbr><span><span>Synthesizer</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1728150517%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-1728150517%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">object </span><a href="-ladder-synthesizer/index.html">LadderSynthesizer</a></div><div class="brief "><p class="paragraph">Builds a spec-correct multivariant (master) playlist from the unadvertised sibling renditions the Wowza server exposes per event. The server's own master advertises only the 720p variant; this turns 720p/360p/160p/audio-only into a real ABR ladder that ExoPlayer's <code class="lang-kotlin">AdaptiveTrackSelection</code> adapts across.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">object </span><a href="-ladder-synthesizer/index.html">LadderSynthesizer</a></div><div class="brief "><p class="paragraph">Builds a spec-correct multivariant (master) playlist from the unadvertised sibling renditions the Wowza server exposes per event. The server's own master advertises only the 720p variant; this turns 720p/360p/160p/audio-only into a real ABR ladder that ExoPlayer's <code class="lang-kotlin">AdaptiveTrackSelection</code> adapts across.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="350149469%2FClasslikes%2F-983147036" anchor-label="MediaKitConfig" id="350149469%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="350149469%2FClasslikes%2F1594100157" anchor-label="MediaKitConfig" id="350149469%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-media-kit-config/index.html"><span>Media</span><wbr></wbr><span>Kit</span><wbr></wbr><span><span>Config</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="350149469%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="350149469%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>baseStreamUrl<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>maxEventNumber<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_EVENT_NUMBER</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Configuration for the playback SDK. The base host is injectable so the hardcoded production server is no longer sprinkled through app code and the URL builder is unit-testable.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-media-kit-config/index.html">MediaKitConfig</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>baseStreamUrl<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>maxEventNumber<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token operator"> = </span>DEFAULT_MAX_EVENT_NUMBER</span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">Configuration for the playback SDK. The base host is injectable so the hardcoded production server is no longer sprinkled through app code and the URL builder is unit-testable.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="1167598508%2FClasslikes%2F-983147036" anchor-label="PlaylistInspector" id="1167598508%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="1167598508%2FClasslikes%2F1594100157" anchor-label="PlaylistInspector" id="1167598508%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-playlist-inspector/index.html"><span>Playlist</span><wbr></wbr><span><span>Inspector</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1167598508%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1167598508%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">object </span><a href="-playlist-inspector/index.html">PlaylistInspector</a></div><div class="brief "><p class="paragraph">Pure-Kotlin HLS (M3U8) tag parser. No I/O — operates on playlist text so it is unit-testable in commonTest. Handles the subset the production Wowza server emits plus the multivariant playlists <a href="-ladder-synthesizer/index.html">LadderSynthesizer</a> builds.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">object </span><a href="-playlist-inspector/index.html">PlaylistInspector</a></div><div class="brief "><p class="paragraph">Pure-Kotlin HLS (M3U8) tag parser. No I/O — operates on playlist text so it is unit-testable in commonTest. Handles the subset the production Wowza server emits plus the multivariant playlists <a href="-ladder-synthesizer/index.html">LadderSynthesizer</a> builds.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="1519338545%2FClasslikes%2F-983147036" anchor-label="ProbedRendition" id="1519338545%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="1519338545%2FClasslikes%2F1594100157" anchor-label="ProbedRendition" id="1519338545%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-probed-rendition/index.html"><span>Probed</span><wbr></wbr><span><span>Rendition</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1519338545%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="1519338545%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-probed-rendition/index.html">ProbedRendition</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>tier<span class="token operator">: </span><a href="-rendition-tier/index.html">RenditionTier</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>bandwidthBitsPerSecond<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>width<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>height<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>codecs<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>chunklistUri<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A rendition that has been probed from the server: its resolved chunklist URI (rotating <code class="lang-kotlin">w</code>-tokens mean this is captured just-in-time) plus the attributes needed to emit a multivariant playlist.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-probed-rendition/index.html">ProbedRendition</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>tier<span class="token operator">: </span><a href="-rendition-tier/index.html">RenditionTier</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>bandwidthBitsPerSecond<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>width<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>height<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-int/index.html">Int</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>codecs<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>chunklistUri<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">A rendition that has been probed from the server: its resolved chunklist URI (rotating <code class="lang-kotlin">w</code>-tokens mean this is captured just-in-time) plus the attributes needed to emit a multivariant playlist.</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="-46806885%2FClasslikes%2F-983147036" anchor-label="RenditionTier" id="-46806885%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="-46806885%2FClasslikes%2F1594100157" anchor-label="RenditionTier" id="-46806885%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-rendition-tier/index.html"><span>Rendition</span><wbr></wbr><span><span>Tier</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-46806885%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="-46806885%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">enum </span><a href="-rendition-tier/index.html">RenditionTier</a> : <a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="-rendition-tier/index.html">RenditionTier</a><span class="token operator">&gt; </span></div><div class="brief "><p class="paragraph">The unadvertised sibling renditions the Wowza server exposes per event, keyed by the URL suffix appended to <code class="lang-kotlin">live/event{i}</code>. Measured 2026-07-03 against the production server:</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">enum </span><a href="-rendition-tier/index.html">RenditionTier</a> : <a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-enum/index.html">Enum</a><span class="token operator">&lt;</span><a href="-rendition-tier/index.html">RenditionTier</a><span class="token operator">&gt; </span></div><div class="brief "><p class="paragraph">The unadvertised sibling renditions the Wowza server exposes per event, keyed by the URL suffix appended to <code class="lang-kotlin">live/event{i}</code>. Measured 2026-07-03 against the production server:</p></div></div></div>
                 </div>
               </div>
             </div>
           </div>
-<a data-name="2055643671%2FClasslikes%2F-983147036" anchor-label="ResolvedLadder" id="2055643671%2FClasslikes%2F-983147036" data-filterable-set=":mediakit:dokkaHtml/commonMain"></a>
-          <div class="table-row" data-filterable-current=":mediakit:dokkaHtml/commonMain" data-filterable-set=":mediakit:dokkaHtml/commonMain">
+<a data-name="2055643671%2FClasslikes%2F1594100157" anchor-label="ResolvedLadder" id="2055643671%2FClasslikes%2F1594100157" data-filterable-set=":mediakit/commonMain"></a>
+          <div class="table-row table-row_content" data-filterable-current=":mediakit/commonMain" data-filterable-set=":mediakit/commonMain">
             <div class="main-subrow keyValue ">
               <div class=""><span class="inline-flex">
                   <div><a href="-resolved-ladder/index.html"><span>Resolved</span><wbr></wbr><span><span>Ladder</span></span></a></div>
-<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2055643671%2FClasslikes%2F-983147036"></span>
+<span class="anchor-wrapper"><span class="anchor-icon" pointing-to="2055643671%2FClasslikes%2F1594100157"></span>
                     <div class="copy-popup-wrapper "><span class="copy-popup-icon"></span><span>Link copied to clipboard</span></div>
                   </span></span></div>
               <div>
                 <div class="title">
-                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit:dokkaHtml/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-resolved-ladder/index.html">ResolvedLadder</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>masterPlaylistText<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>renditions<span class="token operator">: </span><a href="https://kotlinlang.org/api/latest/jvm/stdlib/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><a href="-probed-rendition/index.html">ProbedRendition</a><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">The synthesized ladder plus the renditions it was built from.</p></div></div></div>
+                  <div class="platform-hinted " data-platform-hinted="data-platform-hinted"><div class="content sourceset-dependent-content" data-active="" data-togglable=":mediakit/commonMain"><div class="symbol monospace"><span class="token keyword">data </span><span class="token keyword">class </span><a href="-resolved-ladder/index.html">ResolvedLadder</a><span class="token punctuation">(</span><span class="parameters "><span class="parameter "><span class="token keyword">val </span>masterPlaylistText<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-string/index.html">String</a><span class="token punctuation">, </span></span><span class="parameter "><span class="token keyword">val </span>renditions<span class="token operator">: </span><a href="https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.collections/-list/index.html">List</a><span class="token operator">&lt;</span><a href="-probed-rendition/index.html">ProbedRendition</a><span class="token operator">&gt;</span></span></span><span class="token punctuation">)</span></div><div class="brief "><p class="paragraph">The synthesized ladder plus the renditions it was built from.</p></div></div></div>
                 </div>
               </div>
             </div>
@@ -211,13 +253,22 @@
     </div>
   </div>
 </div>
-      <div class="footer">
-        <span class="go-to-top-icon"><a href="#content" id="go-to-top-link"></a></span><span>© 2026 Copyright</span><span
-                class="pull-right"><span>Generated by </span><a
-                href="https://github.com/Kotlin/dokka"><span>dokka</span><span class="padded-icon"></span></a></span>
-      </div>
+    <div class="footer">
+        <div class="footer--container">
+            <a href="#content" id="go-to-top-link" class="footer--button footer--button_go-to-top"></a>
+            <div class="footer--content">
+                <div>
+                    <span>Generated by </span>
+                    <a class="footer--link footer--link_external" href="https://github.com/Kotlin/dokka">
+                        Dokka
+                    </a>
+                    <div>© 2026 Copyright</div>
+                </div>
             </div>
         </div>
     </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

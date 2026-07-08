@@ -7,7 +7,7 @@ $dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_MAX_C
 $dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_MAX_PROBE_ATTEMPTS/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-m-a-x_-p-r-o-b-e_-a-t-t-e-m-p-t-s.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog.Companion/DEFAULT_RETRY_BACKOFF/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-companion/-d-e-f-a-u-l-t_-r-e-t-r-y_-b-a-c-k-o-f-f.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/index.html
-$dokka.location:com.livingpresence.mediakit/EventCatalog/EventCatalog/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig#kotlin.Int#[Error type: Unresolved type for Duration]#[Error type: Unresolved type for TimeSource]#kotlin.Int#[Error type: Unresolved type for Duration]/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-event-catalog.html
+$dokka.location:com.livingpresence.mediakit/EventCatalog/EventCatalog/#io.ktor.client.HttpClient#com.livingpresence.mediakit.MediaKitConfig#kotlin.Int#kotlin.time.Duration#kotlin.time.TimeSource#kotlin.Int#kotlin.time.Duration/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/-event-catalog.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog/invalidate/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/invalidate.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog/loadEvents/#kotlin.Boolean/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/load-events.html
 $dokka.location:com.livingpresence.mediakit/EventCatalog/probeEvent/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-catalog/probe-event.html
@@ -17,7 +17,7 @@ $dokka.location:com.livingpresence.mediakit/EventInfo/durationMs/#/PointingToDec
 $dokka.location:com.livingpresence.mediakit/EventInfo/eventNumber/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/event-number.html
 $dokka.location:com.livingpresence.mediakit/EventInfo/isLive/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-event-info/is-live.html
 $dokka.location:com.livingpresence.mediakit/LadderResolver///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/index.html
-$dokka.location:com.livingpresence.mediakit/LadderResolver/LadderResolver/#[Error type: Unresolved type for HttpClient]#com.livingpresence.mediakit.MediaKitConfig/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/-ladder-resolver.html
+$dokka.location:com.livingpresence.mediakit/LadderResolver/LadderResolver/#io.ktor.client.HttpClient#com.livingpresence.mediakit.MediaKitConfig/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/-ladder-resolver.html
 $dokka.location:com.livingpresence.mediakit/LadderResolver/probeRenditions/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/probe-renditions.html
 $dokka.location:com.livingpresence.mediakit/LadderResolver/resolve/#kotlin.Int/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-resolver/resolve.html
 $dokka.location:com.livingpresence.mediakit/LadderSynthesizer///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-ladder-synthesizer/index.html
@@ -67,6 +67,7 @@ $dokka.location:com.livingpresence.mediakit/RenditionTier.P160///PointingToDecla
 $dokka.location:com.livingpresence.mediakit/RenditionTier.P360///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-p360/index.html
 $dokka.location:com.livingpresence.mediakit/RenditionTier.P720///PointingToDeclaration/{"org.jetbrains.dokka.links.EnumEntryDRIExtra":{"key":"org.jetbrains.dokka.links.EnumEntryDRIExtra"}}mediakit/com.livingpresence.mediakit/-rendition-tier/-p720/index.html
 $dokka.location:com.livingpresence.mediakit/RenditionTier///PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/index.html
+$dokka.location:com.livingpresence.mediakit/RenditionTier/entries/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/entries.html
 $dokka.location:com.livingpresence.mediakit/RenditionTier/urlSuffix/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/url-suffix.html
 $dokka.location:com.livingpresence.mediakit/RenditionTier/valueOf/#kotlin.String/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/value-of.html
 $dokka.location:com.livingpresence.mediakit/RenditionTier/values/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-rendition-tier/values.html
@@ -75,4 +76,3 @@ $dokka.location:com.livingpresence.mediakit/ResolvedLadder/ResolvedLadder/#kotli
 $dokka.location:com.livingpresence.mediakit/ResolvedLadder/masterPlaylistText/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/master-playlist-text.html
 $dokka.location:com.livingpresence.mediakit/ResolvedLadder/renditions/#/PointingToDeclaration/mediakit/com.livingpresence.mediakit/-resolved-ladder/renditions.html
 com.livingpresence.mediakit
-
