@@ -21,15 +21,13 @@ buildscript {
         gradlePluginPortal()
     }
     dependencies {
-        constraints {
-            classpath("org.bouncycastle:bcprov-jdk18on:1.84")
-            classpath("com.fasterxml.jackson.core:jackson-databind:2.18.9")
-            classpath("io.netty:netty-handler:4.1.135.Final")
-            classpath("io.netty:netty-codec-http2:4.1.135.Final")
-            classpath("io.netty:netty-codec-http:4.1.135.Final")
-            classpath("io.netty:netty-codec:4.1.135.Final")
-            classpath("org.bitbucket.b_c:jose4j:0.9.6")
-        }
+        classpath("org.bouncycastle:bcprov-jdk18on:1.81.1")
+        classpath("com.fasterxml.jackson.core:jackson-databind:2.18.8")
+        classpath("io.netty:netty-handler:4.1.135.Final")
+        classpath("io.netty:netty-codec-http2:4.1.135.Final")
+        classpath("io.netty:netty-codec-http:4.1.135.Final")
+        classpath("io.netty:netty-codec:4.1.135.Final")
+        classpath("org.bitbucket.b_c:jose4j:0.9.6")
     }
 }
 dependencyResolutionManagement {
