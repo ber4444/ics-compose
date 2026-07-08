@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.livingpresence.inner.circle.squared"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.livingpresence.inner.circle.squared"
