@@ -370,6 +370,8 @@ internal class TranscriptionEngine private constructor(private val appContext: C
 
     /** Unzips [zip] into [dest], stripping a single top-level directory if present. */
     private fun unzipFlatteningTopDir(zip: File, dest: File) {
+        // Canonical target dir, used to reject entries that escape it (see below).
+        val destCanonicalPath = dest.canonicalPath
         java.util.zip.ZipInputStream(zip.inputStream().buffered()).use { zis ->
             while (true) {
                 val entry = zis.nextEntry ?: break
@@ -384,6 +386,14 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                     rawPath
                 }
                 val outFile = File(dest, relativePath)
+                // Zip Slip guard: a malicious archive entry name may contain "../"
+                // segments that resolve outside [dest]. Reject anything whose
+                // canonical path is not contained within the target directory.
+                if (outFile.canonicalPath != destCanonicalPath &&
+                    !outFile.canonicalPath.startsWith(destCanonicalPath + File.separator)
+                ) {
+                    throw SecurityException("Zip entry escapes target directory: $rawPath")
+                }
                 outFile.parentFile?.mkdirs()
                 outFile.outputStream().use { zis.copyTo(it) }
                 zis.closeEntry()
