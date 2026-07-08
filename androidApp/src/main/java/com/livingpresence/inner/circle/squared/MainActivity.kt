@@ -26,33 +26,25 @@ class MainActivity : ComponentActivity() {
     /** Whether the user is actively playing video (gates auto-PiP on leave). */
     private val isPlayingVideo = AtomicReference(false)
 
-    /** Reference to the shared frame engine, set once the composition creates it. */
-    internal val frameEngineRef = AtomicReference<PreviewFrameEngine?>(null)
+
 
     private val trimCallback = object : ComponentCallbacks2 {
         override fun onConfigurationChanged(newConfig: Configuration) {}
-        override fun onLowMemory() = MemoryGovernor.onTrim(
-            ComponentCallbacks2.TRIM_MEMORY_COMPLETE,
-            frameEngineRef.get()?.asTrimTarget(),
-        )
-        override fun onTrimMemory(level: Int) = MemoryGovernor.onTrim(
-            level,
-            frameEngineRef.get()?.asTrimTarget(),
-        )
+        override fun onLowMemory() = HostBridge.onTrimMemory(ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+        override fun onTrimMemory(level: Int) = HostBridge.onTrimMemory(level)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        HostBridge.eventsPassword = { BuildConfig.EVENTS_PASSWORD }
+        HostBridge.verticalDemoUrl = { BuildConfig.VERTICAL_DEMO_URL }
+        HostBridge.isDebug = { BuildConfig.DEBUG }
+
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            // One shared PreviewFrameEngine for the whole app session — every feed
-            // tile (and Phase 3's scrub previews) reuse a single decoder + LRU
-            // bitmap cache instead of minting a player per tile.
-            val previewFrameEngine = rememberPreviewFrameEngine()
-            frameEngineRef.set(previewFrameEngine)
             val pipController = object : PipController {
                 override fun updateVideoSize(width: Int, height: Int) =
                     updatePipAspectRatio(width, height)
@@ -61,12 +53,7 @@ class MainActivity : ComponentActivity() {
                     pipSourceRect.set(android.graphics.Rect(left, top, right, bottom))
                 }
             }
-            CompositionLocalProvider(
-                LocalPreviewFrameEngine provides previewFrameEngine,
-                LocalPipController provides pipController,
-            ) {
-                App()
-            }
+            HostBridge.HostApp(pipController)
         }
     }
 
@@ -135,12 +122,7 @@ class MainActivity : ComponentActivity() {
         newConfig: Configuration,
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        InPipState.value = isInPictureInPictureMode
-    }
-
-    companion object {
-        /** Whether the activity is currently in PiP, observed by the player UI. */
-        val InPipState = mutableStateOf(false)
+        HostBridge.inPipState.value = isInPictureInPictureMode
     }
 
     /**

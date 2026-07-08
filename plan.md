@@ -194,3 +194,229 @@ required for the core feature set — they deepen it.
   synthesized ladder and demo streams; needs the exact media3 1.10 extension
   resolved (the convenience extension's call site moved across versions).
 
+---
+
+## Standalone PR plan — Gradle 9 and AGP 9 migration
+
+### Goal
+
+Upgrade the project to Android Gradle Plugin 9.2.1 and Gradle 9.6.1 using the
+supported Kotlin Multiplatform integration. The PR must leave application
+behavior unchanged, keep iOS and Wasm in `:composeApp`, and make every
+Gradle-dependent CI job pass.
+
+This plan follows Google's **Upgrade to AGP 9** skill and, because that skill
+explicitly excludes KMP projects, the JetBrains
+**KMP AGP 9.0 Migration** companion skill it recommends.
+
+### Why the module split is mandatory
+
+AGP 9's new DSL and built-in Kotlin no longer support applying
+`com.android.application` or `com.android.library` beside
+`org.jetbrains.kotlin.multiplatform` in the same Gradle subproject.
+
+The current modules therefore map to these migration paths:
+
+| Current module | Current plugins | Required AGP 9 shape |
+| --- | --- | --- |
+| `:composeApp` | KMP + Android application | KMP Android library plus a new pure Android `:androidApp` |
+| `:mediakit` | KMP + Android library | KMP Android library |
+
+The minimum supported structure is:
+
+```text
+:androidApp   — pure Android application, launcher and packaging
+:composeApp   — shared KMP UI plus Android, iOS, and Wasm implementations
+:mediakit     — shared KMP playback SDK
+```
+
+Renaming `:composeApp` to `:shared` or extracting a separate `:webApp` is not
+required for AGP 9 and is deliberately deferred.
+
+### Version scope
+
+Update only tooling required by the migration:
+
+- Android Gradle Plugin: `9.2.1`
+- Gradle wrapper: `9.6.1`, including regenerated wrapper JAR and launch scripts
+- Add `com.android.kotlin.multiplatform.library` at the AGP version
+- Keep Kotlin at `2.3.20` unless configuration or compilation proves a newer
+  version is required
+- Keep Compose Multiplatform at `1.10.3`; it is above the AGP 9-compatible
+  minimum
+- Upgrade Dokka to `2.2.0` because the current `1.9.20` is not AGP 9-compatible
+- Upgrade another build plugin only if a failing migration check identifies it
+  as incompatible
+- Do not include ordinary AndroidX, Media3, Ktor, coroutines, Metro, Vosk, or
+  other runtime-library updates from Dependabot PR #33
+
+Keep the version catalog and `settings.gradle.kts` plugin declarations
+consistent. Remove unused `com.android.library` and
+`org.jetbrains.kotlin.android` aliases/declarations once no module applies
+them.
+
+### 1. Create the pure Android application module
+
+Add `:androidApp` and apply:
+
+- `com.android.application`
+- `org.jetbrains.kotlin.plugin.compose`
+
+Do not apply `org.jetbrains.kotlin.android`; AGP 9 supplies built-in Kotlin.
+
+Move Android application ownership from `:composeApp` to `:androidApp`:
+
+- `applicationId`, `targetSdk`, version code, and version name
+- launcher manifest and app/service declarations
+- launcher icons, theme, and other app-level Android resources
+- `proguard-rules.pro` and release build type
+- login password and vertical-demo `BuildConfig` fields
+- `MainActivity`
+
+Use a namespace distinct from both KMP libraries. Keep the shipping
+`applicationId` unchanged.
+
+The module depends on `:composeApp`, Android Activity Compose, and Android
+debug tooling. It should contain no business logic or duplicated shared UI.
+
+### 2. Add a narrow Android host bridge
+
+After the split, shared Android code cannot reference `:androidApp`'s generated
+`BuildConfig` or `MainActivity` because the dependency direction is
+`:androidApp` → `:composeApp`.
+
+Add a small public Android host API in `:composeApp` that:
+
+- accepts immutable app configuration values from `:androidApp`
+  (`eventsPassword`, `verticalDemoUrl`, and `isDebug`)
+- hosts the existing shared `App()` composition
+- owns or exposes the existing shared preview-frame memory-trim hook without
+  leaking implementation classes into the app module
+- exposes PiP state and the existing `PipController` seam without shared code
+  naming `MainActivity`
+
+`MainActivity` passes its `BuildConfig` values into this host API and reports
+PiP lifecycle changes through it. Replace all shared references to
+`BuildConfig.*` and `MainActivity.InPipState` with the injected configuration
+and host state.
+
+This bridge is the only planned production-code refactor. Playback, navigation,
+networking, UI behavior, and media policy remain unchanged.
+
+### 3. Convert `:composeApp` to the KMP Android library plugin
+
+Replace `com.android.application` with
+`com.android.kotlin.multiplatform.library`.
+
+Inside `kotlin { android { ... } }`:
+
+- set a library namespace distinct from `:androidApp`
+- retain `compileSdk = 36` and `minSdk = 23`
+- set Android compiler options to JVM 17
+- enable Android resources explicitly
+- enable host tests with Android resources
+
+Remove application-only DSL: `applicationId`, `targetSdk`, version fields,
+build types, ProGuard configuration, and app `BuildConfig` fields.
+
+Migrate `androidUnitTest` to the AGP 9 `androidHostTest` source set and move its
+directory if required by the plugin. Replace deprecated delegated source-set
+lookup and Compose dependency shortcuts with version-catalog dependencies.
+Replace `debugImplementation` tooling with the KMP Android runtime classpath
+configuration.
+
+Keep iOS framework configuration, Wasm configuration, shared Compose resources,
+and all non-launcher Android implementations in `:composeApp`.
+
+### 4. Convert `:mediakit` to the KMP Android library plugin
+
+Replace `com.android.library` with
+`com.android.kotlin.multiplatform.library`.
+
+Move the standalone Android configuration into `kotlin { android { ... } }`:
+
+- namespace
+- `compileSdk = 36`
+- `minSdk = 23`
+- JVM 17 compiler options
+
+Retain explicit API mode, JVM, Wasm, iOS targets, source-set dependencies, API
+validation, Dokka, and Kover. Enable Android resources or Java only if the
+module's sources actually require them.
+
+### 5. Migrate Gradle and AGP DSL usage
+
+- Replace the removed task-action `Project.exec { commandLine(...) }` call used
+  by the AVPlayer bridge with a Gradle 9-compatible public execution API
+- Use only public AGP 9 DSL interfaces; do not use AGP internals or the legacy
+  variant API
+- Preserve the custom `BuildConfig` string quoting at the Android application
+  boundary
+- Regenerate the Gradle wrapper rather than hand-editing its binary or scripts
+- Update CI task paths from `:composeApp` to `:androidApp` only where the task
+  is an Android application packaging/build task
+
+### 6. Adopt AGP 9 defaults deliberately
+
+Remove the migration opt-outs after the module conversion:
+
+- `android.builtInKotlin=false`
+- `android.newDsl=false`
+- `android.uniquePackageNames=false`
+- `android.enableAppCompileTimeRClass=false`
+
+Also remove global compatibility properties whose AGP 9 defaults are safe for
+this project after verification, including global `resValues` enablement and
+defaults already specified explicitly in module DSL.
+
+Do not add `android.disallowKotlinSourceSets=false`. Do not retain a temporary
+legacy-DSL or built-in-Kotlin opt-out as the final migration state.
+
+### 7. Verification order
+
+Do not run `clean`.
+
+1. Confirm JDK 17 and the Android SDK/build tools required by AGP 9 are
+   available.
+2. Run `./gradlew help`.
+3. Run `./gradlew build --dry-run`.
+4. Run the unit-test, Kover, and binary-API checks used by CI.
+5. Build the Android debug application from `:androidApp`.
+6. Build the Wasm production distribution from `:composeApp`.
+7. Generate Dokka documentation.
+8. Compile the iOS simulator framework on macOS to verify the AVPlayer bridge
+   task and framework packaging.
+9. Confirm the launcher manifest, services, resources, `BuildConfig` values,
+   PiP state, and debug-only demo menu still behave on an Android emulator.
+10. Verify every GitHub Actions check passes on the standalone PR.
+
+Gradle IDE sync must succeed before the migration is considered complete. If
+an automated IDE-sync check is unavailable, record successful command-line
+configuration plus a manual Android Studio sync as the final acceptance step.
+
+### Success criteria
+
+- No module combines a classic Android application/library plugin with KMP
+- `:androidApp` is the only Android application module
+- `:composeApp` and `:mediakit` use the KMP Android library plugin
+- Built-in Kotlin and the new AGP DSL are enabled without legacy opt-outs
+- Shipping application ID, version, launcher, services, resources, and runtime
+  behavior are unchanged
+- Android, Wasm, iOS, tests, API validation, coverage, and docs all configure
+  and build successfully
+- The PR contains no unrelated runtime dependency upgrades or feature changes
+
+### Rollback and review strategy
+
+Keep the migration in one standalone PR because the module split, plugin
+replacement, and AGP/Gradle version changes cannot independently leave a
+buildable project. Organize commits by review boundary:
+
+1. module split and host bridge
+2. KMP Android plugin/DSL conversion
+3. Gradle wrapper and build-plugin versions
+4. CI task-path and documentation updates
+
+If a required third-party build plugin is incompatible with the new DSL and has
+no supported version, stop rather than merging with legacy opt-out flags. Record
+the blocking plugin and minimum required upgrade in the PR.
