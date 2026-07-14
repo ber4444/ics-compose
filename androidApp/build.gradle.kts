@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.livingpresence.inner.circle.squared"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.livingpresence.inner.circle.squared"
@@ -57,6 +57,6 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.runtime)
     implementation(libs.compose.foundation)
-    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     debugImplementation(libs.compose.ui.tooling)
 }
