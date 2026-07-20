@@ -360,10 +360,6 @@ private fun ExoPlayerScreen(
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            ResizeToggleButton(
-                                resizeMode = state.resizeMode,
-                                onCycle = { state.resizeMode = nextResizeMode(state.resizeMode) },
-                            )
                             QualityMenu(player = player, renditions = renditions)
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
@@ -662,19 +658,7 @@ private fun CaptionToggleButton(controller: CaptionController) {
     }
 }
 
-@Composable
-private fun ResizeToggleButton(resizeMode: ResizeMode, onCycle: () -> Unit) {
-    TextButton(onClick = onCycle) {
-        Text(
-            text = when (resizeMode) {
-                ResizeMode.FIT -> "Fit"
-                ResizeMode.FILL -> "Fill"
-                ResizeMode.ZOOM -> "Zoom"
-            },
-            color = Color.White,
-        )
-    }
-}
+
 
 @Composable
 private fun PlayerErrorOverlay(

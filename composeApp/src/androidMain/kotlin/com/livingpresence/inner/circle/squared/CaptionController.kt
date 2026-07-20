@@ -53,7 +53,11 @@ internal fun rememberCaptionController(player: Player?): CaptionController {
         if (player == null) return@LaunchedEffect
         if (enabled) {
             engine.loadModel()
-            engine.start(playerPositionProvider = { player.currentPosition.coerceAtLeast(0L) })
+            engine.start(playerPositionProvider = { 
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    player.currentPosition.coerceAtLeast(0L) 
+                }
+            })
         } else {
             engine.stop()
         }

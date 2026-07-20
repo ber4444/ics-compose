@@ -120,12 +120,8 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         }.join()
     }
 
-    /**
-     * Starts the recognizer against [playerPositionProvider], which yields the
-     * content position (ms) used to stamp cues. Idempotent; pairs with [stop].
-     * The recognizer is built lazily once the model is available.
-     */
-    fun start(playerPositionProvider: () -> Long) {
+    /** Starts listening to [feedPcm] and pushing [captions]. Models must be loaded. */
+    fun start(playerPositionProvider: suspend () -> Long) {
         if (!running.compareAndSet(false, true)) return
         recognizerJob?.cancel()
         recognizerJob = engineScope.launch(Dispatchers.Default) {
@@ -197,7 +193,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
      * Pulls PCM chunks off the queue, resamples to 16 kHz mono, and feeds Vosk,
      * publishing partial/final results as [CaptionCue]s.
      */
-    private suspend fun recognizeLoop(playerPositionProvider: () -> Long) {
+    private suspend fun recognizeLoop(playerPositionProvider: suspend () -> Long) {
         val rec = recognizer ?: return
         while (running.get()) {
             val polled = pcmQueue.poll(50, TimeUnit.MILLISECONDS)
