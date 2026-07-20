@@ -33,9 +33,7 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 - **Offline downloads.** Bounded (VOD) events download via WorkManager (Android) 
   and `AVAssetDownloadURLSession` (iOS) into a cache shared with playback; 
   truly-live events get no download affordance.
-- **On-device captions.** Live transcription via a PCM audio tap → Vosk
-  recognizer → Compose caption overlay; the model is fetched on demand, not
-  bundled.
+- **On-device captions.** Live transcription via a PCM audio tap → native Whisper C++ engine (via NDK) → Compose caption overlay; the model is fetched on demand, with a live download progress indicator.
 - **Cross-platform Parity.** A seamless unified experience across Android, iOS, and Wasm. 
   The app features native in-app Web navigation, unified UI aesthetics across all targets, 
   hardware-accelerated thumbnail extraction on iOS via `AVAssetImageGenerator`, and robust 
