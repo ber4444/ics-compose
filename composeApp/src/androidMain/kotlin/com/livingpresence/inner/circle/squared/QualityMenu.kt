@@ -71,7 +71,7 @@ private fun setAuto(player: Player) {
     // resolution pin a prior manual selection applied.
     player.trackSelectionParameters = player.trackSelectionParameters
         .buildUpon()
-        .setMaxVideoSize(1920, 1080)
+        .clearVideoSizeConstraints()
         .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
         .build()
 }
@@ -79,6 +79,7 @@ private fun setAuto(player: Player) {
 private fun pinToHeight(player: Player, rendition: ProbedRendition) {
     player.trackSelectionParameters = player.trackSelectionParameters
         .buildUpon()
+        .setMinVideoSize(rendition.width, rendition.height)
         .setMaxVideoSize(rendition.width, rendition.height)
         .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
         .build()

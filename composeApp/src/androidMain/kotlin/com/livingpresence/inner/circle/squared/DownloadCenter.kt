@@ -3,6 +3,7 @@ package com.livingpresence.inner.circle.squared
 import android.content.Context
 import android.util.Log
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.MimeTypes
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -76,7 +77,9 @@ class DownloadCenter private constructor(
     fun enqueue(event: EventInfo, tier: RenditionTier = RenditionTier.P360) {
         require(!event.isLive) { "Cannot download a live (unbounded) event." }
         val url = config.renditionUrl(event.eventNumber, tier)
-        val request = DownloadRequest.Builder(event.eventNumber.toString(), android.net.Uri.parse(url)).build()
+        val request = DownloadRequest.Builder(event.eventNumber.toString(), android.net.Uri.parse(url))
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            .build()
         downloadManager.addDownload(request)
     }
 

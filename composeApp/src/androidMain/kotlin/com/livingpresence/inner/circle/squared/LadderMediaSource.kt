@@ -65,18 +65,33 @@ internal class LadderMediaSourceBuilder(
                 renditions = ladder.renditions,
             )
         } else {
+            // If we are offline and probing fails, we must fall back to the exact URL
+            // we downloaded to cache (which is P360 by default), otherwise ExoPlayer
+            // misses the cache hit on the master eventUrl.
+            val isDownloaded = runCatching {
+                DownloadCenter.get(context).snapshot()[eventNumber]?.state == DownloadCenter.DownloadState.COMPLETED
+            }.getOrDefault(false)
+            
+            val fallbackUri = if (isDownloaded) {
+                config.renditionUrl(eventNumber, RenditionTier.P360)
+            } else {
+                config.eventUrl(eventNumber)
+            }
+
             ItemResult(
-                mediaItemUri = config.eventUrl(eventNumber),
+                mediaItemUri = fallbackUri,
                 renditions = null,
             )
         }
     }
 
-    private fun buildDataUri(playlistText: String): String =
-        "data:" + MimeTypes.APPLICATION_M3U8 + "," + java.net.URLEncoder.encode(
-            playlistText,
-            Charsets.UTF_8.name(),
+    private fun buildDataUri(playlistText: String): String {
+        val base64 = android.util.Base64.encodeToString(
+            playlistText.toByteArray(Charsets.UTF_8),
+            android.util.Base64.NO_WRAP
         )
+        return "data:" + MimeTypes.APPLICATION_M3U8 + ";base64," + base64
+    }
 
     private fun sourceFromUri(uri: String): MediaSource {
         // data: scheme → a DataSource.Factory that mints DataSchemeDataSource

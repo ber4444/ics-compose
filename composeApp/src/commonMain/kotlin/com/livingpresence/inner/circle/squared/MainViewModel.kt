@@ -12,43 +12,21 @@ import kotlinx.coroutines.launch
 private const val DEFAULT_VIDEO_LOAD_ERROR = "Unable to load videos"
 
 data class MainUiState(
-    val password: String = "",
-    val isGalleryVisible: Boolean = false,
+    val isGalleryVisible: Boolean = true,
     val availableEvents: List<EventInfo> = emptyList(),
     val isLoadingVideos: Boolean = false,
     val videoLoadError: String? = null,
-    /** The expected password, injected per-platform (BuildConfig/gradle property). */
-    val expectedPassword: String = "",
-) {
-    val isLiveEventsEnabled: Boolean
-        get() = password.isNotEmpty() && password == expectedPassword
-}
+)
 
 class MainViewModel(
     private val videoRepository: VideoRepository,
-    /** The login-gate password, injected per-platform so it isn't in common source. */
-    expectedPassword: String,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(MainUiState(expectedPassword = expectedPassword))
+    private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
-    fun onPasswordChanged(password: String) {
-        _uiState.update { it.copy(password = password) }
-    }
-
-    fun showGallery() {
-        _uiState.update {
-            it.copy(
-                isGalleryVisible = true,
-                videoLoadError = null,
-            )
-        }
+    init {
         ensureVideosLoaded()
-    }
-
-    fun hideGallery() {
-        _uiState.update { it.copy(isGalleryVisible = false) }
     }
 
     fun retryLoadingVideos() {

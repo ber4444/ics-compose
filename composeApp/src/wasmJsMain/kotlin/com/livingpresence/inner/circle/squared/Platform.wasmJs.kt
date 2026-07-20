@@ -18,49 +18,85 @@ import androidx.compose.ui.unit.dp
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import kotlinx.browser.window
+import kotlinx.browser.document
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import org.jetbrains.compose.resources.painterResource
+import com.livingpresence.inner.circle.squared.generated.resources.Res
+import com.livingpresence.inner.circle.squared.generated.resources.background_image
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import org.w3c.dom.HTMLVideoElement
+import com.livingpresence.mediakit.MediaKitConfig
+import com.livingpresence.mediakit.RenditionTier
+import androidx.compose.ui.ExperimentalComposeUiApi
 
 actual fun createHttpClient(): HttpClient = HttpClient(Js)
 
-actual fun eventsPassword(): String = "SECRET"
+@JsFun("""
+function attachHls(videoElement, url) {
+    if (window.Hls && window.Hls.isSupported()) {
+        var hls = new window.Hls();
+        hls.loadSource(url);
+        hls.attachMedia(videoElement);
+        hls.on(window.Hls.Events.MANIFEST_PARSED, function() {
+            videoElement.currentTime = 1;
+        });
+        videoElement.addEventListener('loadeddata', function() {
+            videoElement.pause();
+        });
+        return hls;
+    } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        videoElement.src = url;
+        videoElement.play().catch(function(){});
+    }
+    return null;
+}
+""")
+external fun attachHls(videoElement: HTMLVideoElement, url: String): kotlin.js.JsAny?
+
+@JsFun("function destroyHls(hls) { if (hls) hls.destroy(); }")
+external fun destroyHls(hls: kotlin.js.JsAny?)
+
+
+actual fun onEventClick(eventNumber: Int, defaultAction: () -> Unit) {
+    defaultAction()
+}
 
 @Composable
-actual fun loginBackgroundModifier(): Modifier = Modifier
+actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
+    painter = painterResource(Res.drawable.background_image),
+    contentScale = ContentScale.Crop,
+)
 
 @Composable
 actual fun PlatformPlayerScreen(
     url: String,
     onClose: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-    ) {
-        Text("Open the live video stream in a new tab.")
-        Button(onClick = { window.open(url, "_blank") }) {
-            Text("Open stream")
-        }
-        Button(onClick = onClose) {
-            Text("Back")
-        }
-    }
+    WasmPlayerScreen(url, onClose)
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun LiveEventThumbnail(
     eventNumber: Int,
     contentDescription: String?,
     modifier: Modifier,
 ) {
-    // wasmJs Phase 2: a poster placeholder. The hover-to-play <video> overlay
-    // (hls.js, ≤1 active stream, bounds via onGloballyPositioned) is a later
-    // polish item; CORS is verified open so it will work when added.
+    var bounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+
     Box(
-        modifier = modifier.background(
-            Brush.linearGradient(listOf(Color(0xFF37474F), Color(0xFF263238))),
-        ),
+        modifier = modifier
+            .background(Brush.linearGradient(listOf(Color(0xFF37474F), Color(0xFF263238))))
+            .onGloballyPositioned { coordinates -> bounds = coordinates.boundsInWindow() },
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -69,5 +105,34 @@ actual fun LiveEventThumbnail(
             style = MaterialTheme.typography.titleMedium,
         )
     }
-}
 
+    DisposableEffect(bounds) {
+        var hls: kotlin.js.JsAny? = null
+        var video: HTMLVideoElement? = null
+
+        val currentBounds = bounds
+        if (currentBounds != null) {
+            video = document.createElement("video") as HTMLVideoElement
+            video.style.apply {
+                setProperty("position", "absolute")
+                setProperty("left", "${currentBounds.left}px")
+                setProperty("top", "${currentBounds.top}px")
+                setProperty("width", "${currentBounds.width}px")
+                setProperty("height", "${currentBounds.height}px")
+                setProperty("z-index", "100")
+                setProperty("pointer-events", "none")
+                setProperty("object-fit", "cover")
+            }
+            video.muted = true
+
+            document.body?.appendChild(video)
+            val url = MediaKitConfig.Default.renditionUrl(eventNumber, RenditionTier.P160)
+            hls = attachHls(video, url)
+        }
+
+        onDispose {
+            hls?.let { destroyHls(it) }
+            video?.let { it.remove() }
+        }
+    }
+}

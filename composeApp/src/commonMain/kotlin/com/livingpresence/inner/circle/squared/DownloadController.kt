@@ -27,6 +27,9 @@ enum class DownloadQuality { P720, P360, P160, AUDIO }
  * the download affordance in the UI.
  */
 interface DownloadController {
+    /** True if the platform supports background downloading of VOD events. */
+    val isSupported: Boolean
+
     /** A map of event number → download state, kept current. */
     val states: StateFlow<Map<Int, EventDownloadState>>
 

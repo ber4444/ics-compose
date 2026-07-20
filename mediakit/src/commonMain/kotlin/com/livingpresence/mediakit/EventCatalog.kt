@@ -9,6 +9,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.time.Duration
@@ -156,10 +157,10 @@ public class EventCatalog(
         return null
     }
 
-    /** Single attempt. Distinguishes permanent (4xx) from transient failures. */
     private suspend fun probeEventOnce(eventNumber: Int): ProbeResult {
+        val masterUrl = config.eventUrl(eventNumber)
         val response: HttpResponse = runCatching {
-            httpClient.get(config.eventUrl(eventNumber))
+            withTimeout(3000L) { httpClient.get(masterUrl) }
         }.getOrElse { return ProbeResult.Transient }
 
         // 4xx (incl. 404) = the event genuinely doesn't exist → no retry.
@@ -168,10 +169,27 @@ public class EventCatalog(
             return if (response.status.value in 400..499) ProbeResult.Missing else ProbeResult.Transient
         }
 
-        val playlistText = runCatching { response.bodyAsText() }
+        val masterText = runCatching { response.bodyAsText() }
             .getOrElse { return ProbeResult.Transient }
-        val media = runCatching { PlaylistInspector.parseMediaPlaylist(playlistText) }
+            
+        val variants = runCatching { PlaylistInspector.parseMaster(masterText) }
             .getOrElse { return ProbeResult.Transient }
+            
+        val primary = variants.firstOrNull { !it.isIFrameOnly } ?: return ProbeResult.Transient
+        val chunklistUrl = resolveUri(masterUrl, primary.uri)
+
+        val chunklistResponse: HttpResponse = runCatching {
+            withTimeout(3000L) { httpClient.get(chunklistUrl) }
+        }.getOrElse { return ProbeResult.Transient }
+
+        if (!chunklistResponse.status.isSuccess()) return ProbeResult.Transient
+
+        val chunklistText = runCatching { chunklistResponse.bodyAsText() }
+            .getOrElse { return ProbeResult.Transient }
+
+        val media = runCatching { PlaylistInspector.parseMediaPlaylist(chunklistText) }
+            .getOrElse { return ProbeResult.Transient }
+            
         return ProbeResult.Found(
             EventInfo(
                 eventNumber = eventNumber,
@@ -179,6 +197,12 @@ public class EventCatalog(
                 durationMs = (media.durationSeconds * 1000).toLong(),
             )
         )
+    }
+
+    private fun resolveUri(base: String, reference: String): String {
+        if (reference.startsWith("http://") || reference.startsWith("https://")) return reference
+        val baseDir = base.substringBeforeLast('/', "")
+        return "$baseDir/$reference"
     }
 
     private sealed interface ProbeResult {

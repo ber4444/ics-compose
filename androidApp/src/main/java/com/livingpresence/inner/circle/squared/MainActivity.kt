@@ -37,7 +37,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        HostBridge.eventsPassword = { BuildConfig.EVENTS_PASSWORD }
         HostBridge.verticalDemoUrl = { BuildConfig.VERTICAL_DEMO_URL }
         HostBridge.isDebug = { BuildConfig.DEBUG }
 

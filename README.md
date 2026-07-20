@@ -35,9 +35,10 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 - **On-device captions.** Live transcription via a PCM audio tap → Vosk
   recognizer → Compose caption overlay; the model is fetched on demand, not
   bundled.
-- **Cross-platform.** Android (Media3/ExoPlayer), iOS (AVPlayer via an Obj-C
-  cinterop bridge), and a thin wasmJs web target, all sharing the `:mediakit`
-  SDK and Compose UI.
+- **Cross-platform Parity.** A seamless unified experience across Android, iOS, and Wasm. 
+  The app features native in-app Web navigation, unified UI aesthetics across all targets, 
+  hardware-accelerated thumbnail extraction on iOS via `AVAssetImageGenerator`, and robust 
+  native iOS background HLS downloading using `AVAssetDownloadURLSession`.
 
 ## Architecture
 

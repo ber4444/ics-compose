@@ -10,6 +10,13 @@ import com.livingpresence.mediakit.EventInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * Android [DownloadController] backed by [DownloadCenter]. Mirrors the
@@ -19,11 +26,29 @@ import kotlinx.coroutines.flow.asStateFlow
 class AndroidDownloadController(
     private val context: Context,
 ) : DownloadController {
+    override val isSupported: Boolean = true
 
     private val center by lazy { DownloadCenter.get(context) }
 
     private val _states = MutableStateFlow<Map<Int, EventDownloadState>>(emptyMap())
     override val states: StateFlow<Map<Int, EventDownloadState>> = _states.asStateFlow()
+
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var pollingJob: Job? = null
+
+    private fun startPollingIfNeeded() {
+        if (pollingJob?.isActive == true) return
+        pollingJob = scope.launch {
+            while (isActive) {
+                refresh()
+                val hasActive = _states.value.values.any { 
+                    it.state == DownloadStatus.DOWNLOADING || it.state == DownloadStatus.QUEUED 
+                }
+                if (!hasActive) break
+                delay(500) // Poll every 500ms
+            }
+        }
+    }
 
     private val listener = object : DownloadManager.Listener {
         override fun onDownloadChanged(
@@ -32,6 +57,7 @@ class AndroidDownloadController(
             finalException: Exception?,
         ) {
             refresh()
+            startPollingIfNeeded()
         }
 
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
@@ -46,12 +72,14 @@ class AndroidDownloadController(
     init {
         center.downloadManager.addListener(listener)
         refresh()
+        startPollingIfNeeded()
     }
 
     override fun enqueue(event: EventInfo, tier: DownloadQuality) {
         if (event.isLive) return
         center.enqueue(event, tier.toRenditionTier())
         refresh()
+        startPollingIfNeeded()
     }
 
     private fun DownloadQuality.toRenditionTier(): com.livingpresence.mediakit.RenditionTier =
