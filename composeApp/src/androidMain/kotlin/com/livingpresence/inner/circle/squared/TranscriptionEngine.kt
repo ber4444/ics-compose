@@ -88,7 +88,8 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     private val whisper = WhisperJNI()
     
     init {
-        runCatching { WhisperJNI.loadLibrary() }
+        runCatching { System.loadLibrary("whisperjni") }
+            .onFailure { it.printStackTrace() }
     }
 
     /**

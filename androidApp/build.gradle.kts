@@ -13,6 +13,13 @@ android {
         targetSdk = 36
         versionCode = 7009
         versionName = "8.0.7"
+        
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17 -fexceptions"
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     buildFeatures {
@@ -22,6 +29,13 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
