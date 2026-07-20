@@ -153,12 +153,12 @@ internal class TranscriptionEngine private constructor(private val appContext: C
      * decoded 16-bit PCM at [sampleRateHz]/[channels]. The buffer is copied and
      * handed to the background recognizer; this method must not block playback.
      */
-    fun feedPcm(buffer: ByteBuffer, sampleRateHz: Int, channels: Int) {
+    fun feedPcm(buffer: ByteBuffer, sampleRateHz: Int, channels: Int, encoding: Int = android.media.AudioFormat.ENCODING_PCM_16BIT) {
         if (!running.get() || whisperContext == null) return
         val copy = ByteArray(buffer.remaining())
         buffer.duplicate().get(copy)
         // Drop on overflow rather than back-pressuring the audio thread.
-        pcmQueue.offer(PcmChunk(copy, sampleRateHz, channels))
+        pcmQueue.offer(PcmChunk(copy, sampleRateHz, channels, encoding))
     }
 
     /** Releases the model and all resources. Call once, when transcription is done for good. */
@@ -187,7 +187,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                 continue
             }
             contentPositionMs = playerPositionProvider()
-            val floats = resampleTo16kMonoFloat(polled.bytes, polled.sampleRateHz, polled.channels)
+            val floats = resampleTo16kMonoFloat(polled.bytes, polled.sampleRateHz, polled.channels, polled.encoding)
             if (floats.isEmpty()) continue
             
             // Accumulate up to ~5 seconds of audio for streaming chunks
@@ -234,29 +234,48 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     /**
      * Down-mixes + down-samples arbitrary 16-bit PCM to 16 kHz mono Float32 (-1.0 to 1.0).
      */
-    private fun resampleTo16kMonoFloat(bytes: ByteArray, inRate: Int, channels: Int): FloatArray {
+    private fun resampleTo16kMonoFloat(bytes: ByteArray, inRate: Int, channels: Int, encoding: Int): FloatArray {
         if (bytes.size < 2) return FloatArray(0)
-        val inFrames = bytes.size / (2 * channels)
-        if (inFrames == 0) return FloatArray(0)
-        // Mono mix first as shorts.
-        val mono = ShortArray(inFrames)
+        
         val src = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until inFrames) {
-            var sum = 0
-            for (c in 0 until channels) sum += src.short.toInt()
-            mono[i] = (sum / channels).toShort()
+        val mono = if (encoding == android.media.AudioFormat.ENCODING_PCM_FLOAT) {
+            val inFrames = bytes.size / (4 * channels)
+            if (inFrames == 0) return FloatArray(0)
+            val out = FloatArray(inFrames)
+            for (i in 0 until inFrames) {
+                var sum = 0f
+                for (c in 0 until channels) sum += src.float
+                out[i] = sum / channels
+            }
+            out
+        } else {
+            val inFrames = bytes.size / (2 * channels)
+            if (inFrames == 0) return FloatArray(0)
+            val out = FloatArray(inFrames)
+            for (i in 0 until inFrames) {
+                var sum = 0f
+                for (c in 0 until channels) sum += src.short.toFloat() / 32768.0f
+                out[i] = sum / channels
+            }
+            out
         }
+        
         // Linear decimation to TARGET_SAMPLE_RATE_HZ.
+        val inFrames = mono.size
         val outFrames = if (inRate == TARGET_SAMPLE_RATE_HZ) {
             inFrames
         } else {
             (inFrames * TARGET_SAMPLE_RATE_HZ.toDouble() / inRate).toInt()
         }
         val out = FloatArray(outFrames)
-        for (i in 0 until outFrames) {
-            val inIdx = (i * inRate.toDouble() / TARGET_SAMPLE_RATE_HZ).toInt()
-                .coerceIn(0, inFrames - 1)
-            out[i] = mono[inIdx].toFloat() / 32768.0f
+        if (inRate == TARGET_SAMPLE_RATE_HZ) {
+            System.arraycopy(mono, 0, out, 0, outFrames)
+        } else {
+            val ratio = inRate.toFloat() / TARGET_SAMPLE_RATE_HZ
+            for (i in 0 until outFrames) {
+                val inIdx = (i * ratio).toInt().coerceAtMost(mono.size - 1)
+                out[i] = mono[inIdx]
+            }
         }
         return out
     }
@@ -337,7 +356,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
 }
 
 /** A queued PCM chunk with its source format (16-bit, [channels] @ [sampleRateHz]). */
-private data class PcmChunk(val bytes: ByteArray, val sampleRateHz: Int, val channels: Int) {
+private data class PcmChunk(val bytes: ByteArray, val sampleRateHz: Int, val channels: Int, val encoding: Int) {
     override fun equals(other: Any?): Boolean = this === other
     override fun hashCode(): Int = System.identityHashCode(this)
 }
