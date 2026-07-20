@@ -44,12 +44,34 @@ class EventCatalogTest {
         responder: suspend (url: String) -> Pair<HttpStatusCode, String>,
     ): Pair<EventCatalog, MockEngine> {
         val engine = MockEngine { request ->
-            val (status, body) = responder(request.url.toString())
-            respond(
-                content = body,
-                status = status,
-                headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl"),
-            )
+            val urlString = request.url.toString()
+            println("MOCK ENGINE: request for $urlString")
+            if (urlString.endsWith("/playlist.m3u8") || urlString.endsWith("/playlist.m3u8?DVR")) {
+                val (status, body) = responder(urlString)
+                println("MOCK ENGINE: responder for master returned $status")
+                if (status.value in 200..299) {
+                    respond(
+                        content = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=1280x720\nchunklist.m3u8\n",
+                        status = status,
+                        headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl")
+                    )
+                } else {
+                    respond(
+                        content = body,
+                        status = status,
+                        headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl")
+                    )
+                }
+            } else {
+                val queryUrl = urlString.replace("chunklist.m3u8", "playlist.m3u8")
+                val (status, body) = responder(queryUrl)
+                println("MOCK ENGINE: responder for chunklist (query $queryUrl) returned $status")
+                respond(
+                    content = body,
+                    status = status,
+                    headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl")
+                )
+            }
         }
         val client = HttpClient(engine)
         val catalog = EventCatalog(
@@ -250,7 +272,7 @@ class EventCatalogTest {
 
         catalog.loadEvents()
         val afterFirst = engine.requestHistory.size
-        assertEquals(3, afterFirst) // one probe per configured event
+        assertEquals(6, afterFirst) // two probes per configured event (master + chunklist)
 
         clock += (ttl - 1.seconds) // still fresh
         catalog.loadEvents()
@@ -293,7 +315,7 @@ class EventCatalogTest {
         catalog.loadEvents()
         catalog.loadEvents() // cached
         val cached = engine.requestHistory.size
-        assertEquals(3, cached)
+        assertEquals(6, cached)
 
         catalog.invalidate()
         catalog.loadEvents() // re-probes after invalidation
@@ -381,8 +403,8 @@ class EventCatalogTest {
 
         // event1 recovered after one transient 500 → still present.
         assertEquals(setOf(1, 2, 3), events)
-        // event1 was hit twice (failed once, succeeded on retry).
-        assertEquals(2, attempts.getValue(1))
+        // event1 was hit three times (failed master once, succeeded master on retry, succeeded chunklist).
+        assertEquals(3, attempts.getValue(1))
     }
 
     @Test
@@ -401,6 +423,11 @@ class EventCatalogTest {
             attempts[eventNum] = n + 1
             when {
                 eventNum == 2 && n == 0 -> throw IllegalStateException("transient blip")
+                eventNum != 0 && url.contains("playlist.m3u8") -> respond(
+                    content = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=1280x720\nchunklist.m3u8\n",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/vnd.apple.mpegurl"),
+                )
                 eventNum != 0 -> respond(
                     content = boundedChunklist(4, live = false),
                     status = HttpStatusCode.OK,
@@ -424,8 +451,8 @@ class EventCatalogTest {
         val events = catalog.loadEvents().map { it.eventNumber }.toSet()
 
         assertEquals(setOf(1, 2, 3), events)
-        // event2 was hit twice (failed once, succeeded on retry).
-        assertEquals(2, attempts.getValue(2))
+        // event2 was hit three times (failed once, succeeded on retry, succeeded chunklist).
+        assertEquals(3, attempts.getValue(2))
     }
 
     @Test

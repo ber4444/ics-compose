@@ -159,9 +159,11 @@ public class EventCatalog(
 
     private suspend fun probeEventOnce(eventNumber: Int): ProbeResult {
         val masterUrl = config.eventUrl(eventNumber)
+        println("probeEventOnce($eventNumber): fetching $masterUrl")
         val response: HttpResponse = runCatching {
-            withTimeout(3000L) { httpClient.get(masterUrl) }
-        }.getOrElse { return ProbeResult.Transient }
+            httpClient.get(masterUrl)
+        }.onFailure { println("probeEventOnce: master request failed: $it") }
+         .getOrElse { return ProbeResult.Transient }
 
         // 4xx (incl. 404) = the event genuinely doesn't exist → no retry.
         // 5xx = server-side hiccup → transient, worth a retry.
@@ -170,26 +172,39 @@ public class EventCatalog(
         }
 
         val masterText = runCatching { response.bodyAsText() }
+            .onFailure { println("probeEventOnce: master bodyAsText failed: $it") }
             .getOrElse { return ProbeResult.Transient }
             
         val variants = runCatching { PlaylistInspector.parseMaster(masterText) }
+            .onFailure { println("probeEventOnce: parseMaster failed: $it") }
             .getOrElse { return ProbeResult.Transient }
             
-        val primary = variants.firstOrNull { !it.isIFrameOnly } ?: return ProbeResult.Transient
+        val primary = variants.firstOrNull { !it.isIFrameOnly } ?: run {
+            println("probeEventOnce: no primary variant found in $variants")
+            return ProbeResult.Transient
+        }
         val chunklistUrl = resolveUri(masterUrl, primary.uri)
+        println("probeEventOnce: resolved chunklist URL: $chunklistUrl")
 
         val chunklistResponse: HttpResponse = runCatching {
-            withTimeout(3000L) { httpClient.get(chunklistUrl) }
-        }.getOrElse { return ProbeResult.Transient }
+            httpClient.get(chunklistUrl)
+        }.onFailure { println("probeEventOnce: chunklist request failed: $it") }
+         .getOrElse { return ProbeResult.Transient }
 
-        if (!chunklistResponse.status.isSuccess()) return ProbeResult.Transient
+        if (!chunklistResponse.status.isSuccess()) {
+            println("probeEventOnce: chunklist response not success: ${chunklistResponse.status}")
+            return ProbeResult.Transient
+        }
 
         val chunklistText = runCatching { chunklistResponse.bodyAsText() }
+            .onFailure { println("probeEventOnce: chunklist bodyAsText failed: $it") }
             .getOrElse { return ProbeResult.Transient }
 
         val media = runCatching { PlaylistInspector.parseMediaPlaylist(chunklistText) }
+            .onFailure { println("probeEventOnce: parseMediaPlaylist failed: $it") }
             .getOrElse { return ProbeResult.Transient }
             
+        println("probeEventOnce: success! isLive=${media.isLive}")
         return ProbeResult.Found(
             EventInfo(
                 eventNumber = eventNumber,

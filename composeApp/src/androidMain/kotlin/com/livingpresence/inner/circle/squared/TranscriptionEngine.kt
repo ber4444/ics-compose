@@ -180,6 +180,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         val ctx = whisperContext ?: return
         var accumulatedFloats = FloatArray(0)
         
+        android.util.Log.d(TAG, "recognizeLoop started")
         while (running.get()) {
             val polled = pcmQueue.poll(50, TimeUnit.MILLISECONDS)
             if (polled == null) {
@@ -198,6 +199,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
             
             // If we have > 3 seconds of audio, process it
             if (accumulatedFloats.size > TARGET_SAMPLE_RATE_HZ * 3) {
+                android.util.Log.d(TAG, "Running inference on ${accumulatedFloats.size} floats")
                 val params = WhisperFullParams(WhisperSamplingStrategy.GREEDY)
                 params.printProgress = false
                 params.printSpecial = false
@@ -206,11 +208,13 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                 runCatching { whisper.full(ctx, params, accumulatedFloats, accumulatedFloats.size) }
                     .onSuccess {
                         val numSegments = whisper.fullNSegments(ctx)
+                        android.util.Log.d(TAG, "Inference success, numSegments=$numSegments")
                         val textBuilder = StringBuilder()
                         for (i in 0 until numSegments) {
                             textBuilder.append(whisper.fullGetSegmentText(ctx, i))
                         }
                         val final = textBuilder.toString().trim()
+                        android.util.Log.d(TAG, "Recognized text: '$final'")
                         if (final.isNotBlank()) {
                             appendFinalCue(final, contentPositionMs)
                         }
@@ -300,10 +304,14 @@ internal class TranscriptionEngine private constructor(private val appContext: C
 
     private suspend fun resolveModelDir(): java.io.File = withContext(Dispatchers.IO) {
         val dest = java.io.File(appContext.filesDir, "whisper-model.bin")
+        if (dest.exists() && dest.length() > 200_000_000L) {
+            Log.i(TAG, "Deleting old large model to replace with base.en")
+            dest.delete()
+        }
         if (dest.exists() && dest.length() > 0) return@withContext dest
 
         // Download from HuggingFace directly to the bin file.
-        val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin"
+        val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
         val temp = java.io.File(appContext.filesDir, "whisper-model.tmp")
         Log.i(TAG, "Downloading Whisper model from $url")
         var bytesRead = 0L
