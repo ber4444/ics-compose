@@ -21,17 +21,18 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 - **Live & recorded playback.** Live-vs-VOD is inferred from playlist inspection;
   live events expose a LIVE badge and jump-to-live, and the seek bar tracks a
   growing Wowza nDVR window without drift.
-- **Thumbnail feed with scrub preview.** Poster tiles and a YouTube-style
-  scrub-preview bubble are served by one shared frame engine backed by a
-  memory + disk cache — no per-tile players.
+- **Thumbnail feed with scrub preview.** Poster tiles and a scrub-preview bubble 
+  are powered by an ExoPlayer frame engine on Android, and native `AVAssetImageGenerator` 
+  on iOS, avoiding the overhead of N full per-tile players.
 - **Flexible presentation.** fit/fill/zoom resize matrix for both horizontal and
   vertical (9:16) video, rotate-to-fullscreen, auto-hiding controls,
   buffering/error UX, and a stats overlay + quality menu.
 - **Background & Picture-in-Picture.** Playback is owned by a `MediaSession`
   service (surviving config changes), with PiP aspect-clamped for vertical video
   and background audio constrained to the low-bitrate audio-only tier.
-- **Offline downloads.** Bounded (VOD) events download Wi-Fi-only via WorkManager
-  into a cache shared with playback; truly-live events get no download affordance.
+- **Offline downloads.** Bounded (VOD) events download via WorkManager (Android) 
+  and `AVAssetDownloadURLSession` (iOS) into a cache shared with playback; 
+  truly-live events get no download affordance.
 - **On-device captions.** Live transcription via a PCM audio tap → Vosk
   recognizer → Compose caption overlay; the model is fetched on demand, not
   bundled.
@@ -52,8 +53,8 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
   androidMain      — ExoPlayer (in PlaybackService), PreviewFrameEngine,
                      DownloadCenter, MemoryGovernor, LadderMediaSourceBuilder
   iosMain          — AVPlayer playback (UIKitView + AVPlayerLayer cinterop),
-                     PiP, background audio
-  wasmJsMain       — thin web target (poster tiles + open-stream)
+                     PiP, background audio, native offline downloads
+  wasmJsMain       — thin web target (poster tiles + in-app player screen)
 ```
 
 The playback engine lives in `:mediakit`, **owned by a `MediaSessionService`**,
@@ -77,10 +78,11 @@ The load-bearing design calls and the reasoning behind them. Full detail in
   emits a spec-correct multivariant playlist fed via a `data:` URI. The result is
   **genuine ABR on the production streams** — the single highest-leverage decision.
 
-- **One shared frame engine, not N per-tile players** — `PreviewFrameEngine` is a
-  single muted, video-only ExoPlayer extracting `_160p` frames (~65 KB each) into
-  an LRU cache. This is the legitimate version of "frame recycling" — MediaCodec
-  owns the decoded buffers; we own one extractor.
+- **Efficient Thumbnail Extraction, not N per-tile players** — On Android, 
+  `PreviewFrameEngine` is a single muted, video-only ExoPlayer extracting `_160p` 
+  frames (~65 KB each) into an LRU cache. This avoids decoder exhaustion. On iOS, 
+  we leverage `AVAssetImageGenerator` natively within Compose `UIKitView`s to 
+  achieve performant frame extraction without full player instantiation.
 
 - **Live vs VOD by playlist inspection** — `#EXT-X-ENDLIST` presence drives both
   the LIVE badge and download eligibility. Truly-live events (no `ENDLIST`) get no
