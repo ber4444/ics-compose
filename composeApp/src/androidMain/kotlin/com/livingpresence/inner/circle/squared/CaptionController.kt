@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.Player
 import kotlinx.coroutines.flow.StateFlow
+import androidx.compose.runtime.collectAsState
 
 /**
  * Holds the in-app transcription state for a player screen: the CC toggle and
@@ -34,6 +35,7 @@ internal class CaptionController(
     val ready: StateFlow<Boolean>,
     val loadError: StateFlow<String?>,
     val captions: StateFlow<List<CaptionCue>>,
+    val downloadProgress: Int,
     val onToggle: () -> Unit,
 )
 
@@ -70,13 +72,19 @@ internal fun rememberCaptionController(player: Player?): CaptionController {
         }
     }
 
-    return remember(engine, enabled) {
+    val ready by engine.ready.collectAsState()
+    val loadError by engine.loadError.collectAsState()
+    val downloadProgress by engine.downloadProgress.collectAsState()
+
+    // Pass latest values to a stable controller wrapper.
+    return remember(engine, enabled, ready, loadError, downloadProgress) {
         CaptionController(
             enabled = enabled,
             ready = engine.ready,
             loadError = engine.loadError,
             captions = engine.captions,
-            onToggle = { enabled = !enabled },
+            downloadProgress = downloadProgress,
+            onToggle = { enabled = !enabled }
         )
     }
 }

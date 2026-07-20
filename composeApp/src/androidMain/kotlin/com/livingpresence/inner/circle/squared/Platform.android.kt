@@ -646,6 +646,7 @@ private fun CaptionToggleButton(controller: CaptionController) {
     val loadError by controller.loadError.collectAsState()
     val label = when {
         controller.enabled && loadError != null -> "CC!"
+        controller.enabled && !ready && controller.downloadProgress > 0 && controller.downloadProgress < 100 -> "${controller.downloadProgress}%"
         controller.enabled && !ready -> "CC…"
         controller.enabled -> "CC●"
         else -> "CC"

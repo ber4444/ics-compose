@@ -72,6 +72,10 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     private val _captions = MutableStateFlow<List<CaptionCue>>(emptyList())
     val captions: StateFlow<List<CaptionCue>> = _captions.asStateFlow()
 
+    /** Model download progress from 0 to 100. */
+    private val _downloadProgress = MutableStateFlow(0)
+    val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
+
     private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var recognizerJob: Job? = null
 
@@ -285,13 +289,23 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         var bytesRead = 0L
         var lastLog = System.currentTimeMillis()
         try {
-            java.net.URL(url).openStream().use { input ->
+            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.connect()
+            val totalBytes = connection.contentLength.toLong()
+            
+            connection.inputStream.use { input ->
                 temp.outputStream().use { output ->
                     val buffer = ByteArray(8192)
                     var read: Int
                     while (input.read(buffer).also { read = it } != -1) {
                         output.write(buffer, 0, read)
                         bytesRead += read
+                        
+                        if (totalBytes > 0) {
+                            val percent = ((bytesRead.toDouble() / totalBytes) * 100).toInt()
+                            _downloadProgress.value = percent.coerceIn(0, 100)
+                        }
+                        
                         val now = System.currentTimeMillis()
                         if (now - lastLog > 2000) {
                             Log.d(TAG, "Downloading model... ${bytesRead / 1024 / 1024} MB")
@@ -301,6 +315,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                 }
             }
             temp.renameTo(dest)
+            _downloadProgress.value = 100
             Log.i(TAG, "Whisper model successfully downloaded to ${dest.absolutePath}")
             return@withContext dest
         } catch (e: Exception) {
