@@ -171,8 +171,8 @@ private fun ExoPlayerScreen(
     val fullscreen = rememberFullscreenToggle()
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
-    // taps PCM; captions render via CaptionOverlay below. Lazily loads the Vosk
-    // model on first enable (~50 MB, shipped as an asset, not bundled).
+    // taps PCM; captions render via CaptionOverlay below. Lazily downloads the
+    // Whisper model on first enable (~147 MB, from Hugging Face, not bundled).
     val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
@@ -364,7 +364,7 @@ private fun ExoPlayerScreen(
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
-                            // Phase 8: closed-captions toggle (on-device Vosk).
+                            // Phase 8: closed-captions toggle (on-device Whisper).
                             CaptionToggleButton(controller = captionController)
                         }
                     }

@@ -36,7 +36,7 @@ Where the initial ideas needed correcting, and why:
 2. **"Fetch 144p/240p frames for thumbnails"** — confirmed feasible: the server exposes unadvertised `_160p` (284×160) and `_360p` renditions (measured). Tile posters and scrub previews fetch from `event{i}_160p` — the 144p-class source the idea asked for, already tile-sized. The preview player also sets `forceLowestBitrate(true)` so behavior is identical on any stream with an advertised ladder.
 3. **ABR** — ExoPlayer does ABR automatically (`AdaptiveTrackSelection` + bandwidth meter) *when the master playlist advertises a ladder* — this server's masters advertise only one variant, so out of the box ABR is a no-op here. But the renditions exist, so we **synthesize the multivariant playlist client-side**: probe the four rendition playlists, resolve their chunklist URLs just-in-time (they rotate — see Ground truth), emit a spec-correct master with measured `BANDWIDTH`/`RESOLUTION`/`CODECS` attributes and absolute chunklist URIs, include `_aac` as the audio-only bottom tier (per Apple's ladder guidance), and hand it to `HlsMediaSource` via a `data:` URI (`DataSchemeDataSource`). Result: **genuine ABR on the production streams** plus a quality menu backed by real renditions. Fallback if chunklist rotation or GOP alignment bites: manual quality switching across rendition URLs with position-preserving reload.
 4. **"Frame recycling / reuse video frame buffers"** — decoded frame buffers are owned and recycled by **MediaCodec** internally; this is not an app-level knob. The real, equivalent engineering: **one shared extractor/preview player** instead of N per-tile players (this supersedes the old plan's 3-player cap design), surface reuse, and a pooled/LRU bitmap cache for thumbnails.
-5. **Live Caption** — a system feature the user toggles; apps cannot invoke it programmatically. Our obligations: correct `AudioAttributes` (`USAGE_MEDIA` — already set) and not blocking capture (`setAllowedCapturePolicy`), plus a README note. Actual in-app transcription = PCM tap via `TeeAudioProcessor` feeding an on-device recognizer (Vosk) — kept as a stretch phase because it's large (model asset, resampling, threading).
+5. **Live Caption** — a system feature the user toggles; apps cannot invoke it programmatically. Our obligations: correct `AudioAttributes` (`USAGE_MEDIA` — already set) and not blocking capture (`setAllowedCapturePolicy`), plus a README note. Actual in-app transcription = PCM tap via `TeeAudioProcessor` feeding an on-device recognizer (whisper.cpp) — kept as a stretch phase because it's large (model asset, resampling, threading).
 6. **"Pre-download with WorkManager"** — WorkManager alone cannot download HLS (hundreds of segments, resume, cache indexing). The correct Media3 architecture: **`DownloadService` + `HlsDownloader`**, with **`WorkManagerScheduler`** (`media3-exoplayer-workmanager`) so unmet-requirement restarts go through WorkManager, and `Requirements(NETWORK_UNMETERED)` for wifi-only. Backgrounding doesn't interrupt because `DownloadService` is a foreground service; WorkManager resumes it after process death. Measured reality: today's events are bounded (`ENDLIST`) → downloadable. Unbounded (truly live) events get a **LIVE badge** and no download affordance.
 7. **404 handling** — already correct in `VideoRepository` (404s never enter the list). We extend it: probe in parallel, and if a stream 404s *after* listing (e.g. removed between probe and render), the tile's thumbnail load failure removes the tile rather than showing a placeholder.
 8. **iOS/AVPlayer** — sound idea, own phase. Expert caveat: `AVAssetImageGenerator` does **not** work on HTTP Live Streams; iOS scrub previews use `AVPlayerItemVideoOutput`. iOS offline uses `AVAssetDownloadURLSession` (WorkManager is Android-only).
@@ -128,7 +128,7 @@ Tests are written *per phase*; this phase completes the harness:
 
 ## Phase 8 — Stretch: transcription
 - **Live Caption**: no code — verify `USAGE_MEDIA` (done) and default capture policy; README note on enabling it (per Scrutiny #5).
-- **In-app on-device transcription**: custom `RenderersFactory` → `DefaultAudioSink` with `TeeAudioProcessor` tapping PCM → resample → **Vosk** small-model recognizer on a background thread → `StateFlow<List<CaptionCue>>` → Compose caption overlay with a CC toggle. Ship the model as a downloadable asset, not in the APK (~50 MB). Also enable Media3's built-in text renderer so CEA-608/708 would render if a stream ever carries them.
+- **In-app on-device transcription**: custom `RenderersFactory` → `DefaultAudioSink` with `TeeAudioProcessor` tapping PCM → resample → **whisper.cpp** (`ggml-base.en`) recognizer on a background thread → `StateFlow<List<CaptionCue>>` → Compose caption overlay with a CC toggle. Ship the model as a downloadable asset, not in the APK (~147 MB). Also enable Media3's built-in text renderer so CEA-608/708 would render if a stream ever carries them.
 
 ## Key technical decisions
 - **One shared frame engine** for tiles + scrub previews (supersedes per-tile players): bounded decode/network cost, and it *is* the legitimate version of "frame recycling".
@@ -144,7 +144,7 @@ Tests are written *per phase*; this phase completes the harness:
 - The live path (no `ENDLIST`, sliding DVR window, `isCurrentMediaItemLive`, jump-to-live) must be re-verified during a real live window — one airs ~5 PM today, use it.
 - Rendition availability per event is assumed uniform but unverified across all events — `LadderSynthesizer` omits 404ing renditions, so worst case an event degrades to fewer tiers.
 - CMP-on-iOS `UIKitView` z-ordering with overlaid Compose controls needs a spike (known CMP interop sharp edge).
-- Vosk model size/licensing and PCM resampling effort make Phase 8 genuinely optional.
+- Whisper model size and PCM resampling effort make Phase 8 genuinely optional.
 
 ## Verification
 - Per phase: `./gradlew :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinWasmJs :mediakit:allTests` green locally and in CI.
@@ -247,7 +247,7 @@ Update only tooling required by the migration:
 - Upgrade Dokka to `2.2.0` because the current `1.9.20` is not AGP 9-compatible
 - Upgrade another build plugin only if a failing migration check identifies it
   as incompatible
-- Do not include ordinary AndroidX, Media3, Ktor, coroutines, Metro, Vosk, or
+- Do not include ordinary AndroidX, Media3, Ktor, coroutines, Metro, whisper.cpp, or
   other runtime-library updates from Dependabot PR #33
 
 Keep the version catalog and `settings.gradle.kts` plugin declarations

@@ -28,10 +28,10 @@ import io.github.givimad.whisperjni.WhisperContext
 private const val TAG = "TranscriptionEngine"
 
 /**
- * Vosk consumes **16 kHz mono 16-bit PCM**. ExoPlayer's audio sink runs at the
- * content's native rate (commonly 48 kHz, stereo), so the tapped PCM is
- * down-mixed to mono and down-sampled here before being handed to the
- * recognizer. 16 kHz is the canonical small-model sample rate (see Vosk docs).
+ * Whisper consumes **16 kHz mono 32-bit float PCM**. ExoPlayer's audio sink runs
+ * at the content's native rate (commonly 48 kHz, stereo), so the tapped PCM is
+ * down-mixed to mono and down-sampled here before being handed to the model.
+ * 16 kHz is the rate every Whisper model expects (see whisper.cpp docs).
  */
 internal const val TARGET_SAMPLE_RATE_HZ = 16_000
 
@@ -45,13 +45,15 @@ private const val MAX_CUES = 30
  *  1. ExoPlayer taps decoded PCM via a [TeeAudioProcessor]
  *     ([TranscriptionRenderersFactory]).
  *  2. [feedPcm] hands that buffer to this engine, which resamples it to
- *     16 kHz mono on a background thread.
- *  3. A [Recognizer] running on that thread emits partial/final JSON results.
- *  4. Results are parsed into [CaptionCue]s and published via [captions].
+ *     16 kHz mono 32-bit float on a background thread.
+ *  3. whisper.cpp (via WhisperJNI) transcribes a rolling audio window on that
+ *     thread and emits recognized text segments.
+ *  4. Segments are turned into [CaptionCue]s and published via [captions].
  *
-     * **Model sourcing.** The Whisper large-v3-turbo model (Q5_0) is ~500+ MB and is *not* bundled.
-     * [loadModel] resolves a previously-unpacked copy from app-private storage;
-     * if none is present it downloads the model from Hugging Face.
+ * **Model sourcing.** The Whisper `ggml-base.en` model (~147 MB) is *not*
+ * bundled in the APK. [loadModel] resolves a previously-downloaded copy from
+ * app-private storage; if none is present it downloads it from Hugging Face on
+ * first CC toggle.
  *
  * **Engine lifetime.** A singleton bound to the app process — the player is
  * service-owned ([PlaybackService]) and outlives the composable, so the engine
@@ -93,8 +95,8 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     }
 
     /**
-     * Loads the Vosk model asynchronously. Safe to await before enabling the CC
-     * toggle; also called lazily by [start] if the model isn't ready yet. Sets
+     * Loads the Whisper model asynchronously. Safe to await before enabling the
+     * CC toggle; also called lazily by [start] if the model isn't ready yet. Sets
      * [ready] on success or [loadError] on failure.
      */
     suspend fun loadModel() {

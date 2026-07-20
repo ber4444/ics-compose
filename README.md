@@ -108,7 +108,7 @@ migration.” The migration PR intentionally leaves these follow-ups out:
   (JetBrains' recommended full platform restructure). The minimum supported
   split keeps iOS and Wasm in `:composeApp`.
 - [ ] Revisit the ordinary dependency upgrades grouped into Dependabot PR #33.
-  AndroidX, Media3, Ktor, coroutines, Metro, Vosk, and other runtime updates
+  AndroidX, Media3, Ktor, coroutines, Metro, whisper.cpp, and other runtime updates
   should be reviewed in smaller dependency-only PRs.
 - [ ] Extract repeated build configuration into convention plugins after the
   migrated module boundaries have stabilized.
