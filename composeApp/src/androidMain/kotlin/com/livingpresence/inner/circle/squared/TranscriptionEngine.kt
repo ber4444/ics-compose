@@ -199,11 +199,26 @@ internal class TranscriptionEngine private constructor(private val appContext: C
             
             // If we have > 3 seconds of audio, process it
             if (accumulatedFloats.size > TARGET_SAMPLE_RATE_HZ * 3) {
+                var isSilence = true
+                for (f in accumulatedFloats) {
+                    if (kotlin.math.abs(f) > 0.005f) {
+                        isSilence = false
+                        break
+                    }
+                }
+                if (isSilence) {
+                    android.util.Log.d(TAG, "Audio is silent, skipping inference")
+                    accumulatedFloats = FloatArray(0)
+                    continue
+                }
+
                 android.util.Log.d(TAG, "Running inference on ${accumulatedFloats.size} floats")
                 val params = WhisperFullParams(WhisperSamplingStrategy.GREEDY)
                 params.printProgress = false
                 params.printSpecial = false
                 params.printRealtime = false
+                params.nThreads = 4
+                params.language = "en"
                 
                 runCatching { whisper.full(ctx, params, accumulatedFloats, accumulatedFloats.size) }
                     .onSuccess {
