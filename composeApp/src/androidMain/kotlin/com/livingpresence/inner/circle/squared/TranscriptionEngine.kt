@@ -20,10 +20,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.vosk.LibVosk
-import org.vosk.LogLevel
-import org.vosk.Model
-import org.vosk.Recognizer
+import io.github.givimad.whisperjni.WhisperJNI
+import io.github.givimad.whisperjni.WhisperFullParams
+import io.github.givimad.whisperjni.WhisperSamplingStrategy
+import io.github.givimad.whisperjni.WhisperContext
 
 private const val TAG = "TranscriptionEngine"
 
@@ -49,14 +49,9 @@ private const val MAX_CUES = 30
  *  3. A [Recognizer] running on that thread emits partial/final JSON results.
  *  4. Results are parsed into [CaptionCue]s and published via [captions].
  *
-     * **Model sourcing.** The Vosk acoustic model is ~41 MB and is *not* bundled in
-     * the APK (plan.md: "ship the model as a downloadable asset, not in the APK").
+     * **Model sourcing.** The Whisper large-v3-turbo model (Q5_0) is ~500+ MB and is *not* bundled.
      * [loadModel] resolves a previously-unpacked copy from app-private storage;
-     * if none is present it downloads the small English model
-     * (`vosk-model-small-en-us-0.15`) from the official Vosk CDN and
-     * stream-unzips it on first use — so the first CC toggle self-provisions the
-     * model with no manual setup. A developer-supplied `assets/models/vosk-model`
-     * fallback is also honored (e.g. for offline testing).
+     * if none is present it downloads the model from Hugging Face.
  *
  * **Engine lifetime.** A singleton bound to the app process — the player is
  * service-owned ([PlaybackService]) and outlives the composable, so the engine
@@ -84,12 +79,12 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     private val pcmQueue = LinkedBlockingQueue<PcmChunk>(64)
     private val running = AtomicBoolean(false)
 
-    @Volatile private var model: Model? = null
-    @Volatile private var recognizer: Recognizer? = null
+    @Volatile private var whisperContext: WhisperContext? = null
     @Volatile private var contentPositionMs: Long = 0L
-
+    private val whisper = WhisperJNI()
+    
     init {
-        runCatching { LibVosk.setLogLevel(LogLevel.WARNINGS) }
+        runCatching { WhisperJNI.loadLibrary() }
     }
 
     /**
@@ -102,13 +97,13 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         engineScope.launch {
             val outcome = runCatching { resolveModelDir() }
             outcome.onSuccess { dir ->
-                val loaded = runCatching { Model(dir.absolutePath) }
-                loaded.onSuccess {
-                    model?.close()
-                    model = it
+                val loaded = runCatching { whisper.init(java.nio.file.Paths.get(dir.absolutePath)) }
+                loaded.onSuccess { ctx ->
+                    whisperContext?.close()
+                    whisperContext = ctx
                     _ready.value = true
                     _loadError.value = null
-                    Log.i(TAG, "Vosk model loaded from ${dir.absolutePath}")
+                    Log.i(TAG, "Whisper model loaded from ${dir.absolutePath}")
                 }.onFailure { e ->
                     _loadError.value = "Model load failed: ${e.message}"
                     Log.e(TAG, "Model load failed", e)
@@ -127,23 +122,15 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         recognizerJob = engineScope.launch(Dispatchers.Default) {
             // Wait for the model if load was deferred to the toggle.
             var waited = 0
-            while (model == null && waited < 5_000) {
+            while (whisperContext == null && waited < 5_000) {
                 delay(100)
                 waited += 100
             }
-            val m = model ?: run {
+            if (whisperContext == null) {
                 Log.w(TAG, "Recognizer start aborted: no model.")
                 running.set(false)
                 return@launch
             }
-            val rec = runCatching { Recognizer(m, TARGET_SAMPLE_RATE_HZ.toFloat()) }
-                .getOrElse { e ->
-                    Log.e(TAG, "Recognizer construction failed", e)
-                    running.set(false)
-                    return@launch
-                }
-            recognizer?.close()
-            recognizer = rec
             recognizeLoop(playerPositionProvider)
         }
     }
@@ -154,12 +141,6 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         recognizerJob?.cancel()
         recognizerJob = null
         pcmQueue.clear()
-        // Flush any open partial into a finalized cue.
-        runCatching {
-            val rec = recognizer ?: return
-            val final = parseResult(rec.finalResult)?.takeIf { it.isNotBlank() }
-            if (final != null) appendFinalCue(final, contentPositionMs)
-        }
     }
 
     /**
@@ -168,7 +149,7 @@ internal class TranscriptionEngine private constructor(private val appContext: C
      * handed to the background recognizer; this method must not block playback.
      */
     fun feedPcm(buffer: ByteBuffer, sampleRateHz: Int, channels: Int) {
-        if (!running.get() || recognizer == null) return
+        if (!running.get() || whisperContext == null) return
         val copy = ByteArray(buffer.remaining())
         buffer.duplicate().get(copy)
         // Drop on overflow rather than back-pressuring the audio thread.
@@ -178,10 +159,8 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     /** Releases the model and all resources. Call once, when transcription is done for good. */
     fun release() {
         stop()
-        runCatching { recognizer?.close() }
-        runCatching { model?.close() }
-        recognizer = null
-        model = null
+        runCatching { whisperContext?.close() }
+        whisperContext = null
         _ready.value = false
         _captions.value = emptyList()
         engineScope.cancel()
@@ -190,11 +169,12 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     // -- internals ----------------------------------------------------------
 
     /**
-     * Pulls PCM chunks off the queue, resamples to 16 kHz mono, and feeds Vosk,
-     * publishing partial/final results as [CaptionCue]s.
+     * Pulls PCM chunks off the queue, resamples to 16 kHz mono Float32, and feeds Whisper.
      */
     private suspend fun recognizeLoop(playerPositionProvider: suspend () -> Long) {
-        val rec = recognizer ?: return
+        val ctx = whisperContext ?: return
+        var accumulatedFloats = FloatArray(0)
+        
         while (running.get()) {
             val polled = pcmQueue.poll(50, TimeUnit.MILLISECONDS)
             if (polled == null) {
@@ -202,39 +182,58 @@ internal class TranscriptionEngine private constructor(private val appContext: C
                 continue
             }
             contentPositionMs = playerPositionProvider()
-            val mono16 = resampleTo16kMonoS16(polled.bytes, polled.sampleRateHz, polled.channels)
-            if (mono16.isEmpty()) continue
-            val shorts = toShortArray(mono16)
-            val accepted = runCatching { rec.acceptWaveForm(shorts, shorts.size) }
-                .getOrElse {
-                    Log.w(TAG, "acceptWaveForm failed", it)
-                    continue
-                }
-            if (accepted) {
-                // Utterance boundary → finalize.
-                parseResult(rec.result)?.takeIf { it.isNotBlank() }
-                    ?.let { appendFinalCue(it, contentPositionMs) }
-            } else {
-                // Mid-utterance → update the rolling partial.
-                parseResult(rec.partialResult)?.takeIf { it.isNotBlank() }
-                    ?.let { publishPartial(it, contentPositionMs) }
+            val floats = resampleTo16kMonoFloat(polled.bytes, polled.sampleRateHz, polled.channels)
+            if (floats.isEmpty()) continue
+            
+            // Accumulate up to ~5 seconds of audio for streaming chunks
+            val newAccumulated = FloatArray(accumulatedFloats.size + floats.size)
+            System.arraycopy(accumulatedFloats, 0, newAccumulated, 0, accumulatedFloats.size)
+            System.arraycopy(floats, 0, newAccumulated, accumulatedFloats.size, floats.size)
+            accumulatedFloats = newAccumulated
+            
+            // If we have > 3 seconds of audio, process it
+            if (accumulatedFloats.size > TARGET_SAMPLE_RATE_HZ * 3) {
+                val params = WhisperFullParams(WhisperSamplingStrategy.GREEDY)
+                params.printProgress = false
+                params.printSpecial = false
+                params.printRealtime = false
+                
+                runCatching { whisper.full(ctx, params, accumulatedFloats, accumulatedFloats.size) }
+                    .onSuccess {
+                        val numSegments = whisper.fullNSegments(ctx)
+                        val textBuilder = StringBuilder()
+                        for (i in 0 until numSegments) {
+                            textBuilder.append(whisper.fullGetSegmentText(ctx, i))
+                        }
+                        val final = textBuilder.toString().trim()
+                        if (final.isNotBlank()) {
+                            appendFinalCue(final, contentPositionMs)
+                        }
+                        // Keep the last second for overlap context to avoid chopping words
+                        val keepSize = TARGET_SAMPLE_RATE_HZ * 1
+                        val keepArray = FloatArray(keepSize)
+                        if (accumulatedFloats.size > keepSize) {
+                            System.arraycopy(accumulatedFloats, accumulatedFloats.size - keepSize, keepArray, 0, keepSize)
+                            accumulatedFloats = keepArray
+                        } else {
+                            accumulatedFloats = FloatArray(0)
+                        }
+                    }
+                    .onFailure {
+                        Log.w(TAG, "Whisper inference failed", it)
+                    }
             }
         }
     }
 
     /**
-     * Down-mixes + down-samples arbitrary 16-bit PCM to 16 kHz mono.
-     *
-     * This is a deliberately simple linear (nearest-neighbour) decimator: Vosk's
-     * small models are forgiving of input rate, and the goal is a clean,
-     * understandable pipeline rather than audiophile quality. For production
-     * accuracy, swap in a proper low-pass + polyphase resampler (TODO).
+     * Down-mixes + down-samples arbitrary 16-bit PCM to 16 kHz mono Float32 (-1.0 to 1.0).
      */
-    private fun resampleTo16kMonoS16(bytes: ByteArray, inRate: Int, channels: Int): ByteArray {
-        if (bytes.size < 2) return ByteArray(0)
+    private fun resampleTo16kMonoFloat(bytes: ByteArray, inRate: Int, channels: Int): FloatArray {
+        if (bytes.size < 2) return FloatArray(0)
         val inFrames = bytes.size / (2 * channels)
-        if (inFrames == 0) return ByteArray(0)
-        // Mono mix first.
+        if (inFrames == 0) return FloatArray(0)
+        // Mono mix first as shorts.
         val mono = ShortArray(inFrames)
         val src = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         for (i in 0 until inFrames) {
@@ -246,25 +245,14 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         val outFrames = if (inRate == TARGET_SAMPLE_RATE_HZ) {
             inFrames
         } else {
-            (inFrames.toLong() * TARGET_SAMPLE_RATE_HZ / inRate).toInt().coerceAtLeast(1)
+            (inFrames * TARGET_SAMPLE_RATE_HZ.toDouble() / inRate).toInt()
         }
-        val out = ShortArray(outFrames)
+        val out = FloatArray(outFrames)
         for (i in 0 until outFrames) {
-            val srcPos = if (inRate == TARGET_SAMPLE_RATE_HZ) {
-                i
-            } else {
-                ((i.toLong() * inRate) / TARGET_SAMPLE_RATE_HZ).toInt()
-            }.coerceIn(0, inFrames - 1)
-            out[i] = mono[srcPos]
+            val inIdx = (i * inRate.toDouble() / TARGET_SAMPLE_RATE_HZ).toInt()
+                .coerceIn(0, inFrames - 1)
+            out[i] = mono[inIdx].toFloat() / 32768.0f
         }
-        val result = ByteArray(out.size * 2)
-        ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(out)
-        return result
-    }
-
-    private fun toShortArray(bytes: ByteArray): ShortArray {
-        val out = ShortArray(bytes.size / 2)
-        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(out)
         return out
     }
 
@@ -286,158 +274,42 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         _captions.value = updated.takeLast(MAX_CUES)
     }
 
-    /**
-     * Extracts the `"text"` field from a Vosk result JSON. Vosk emits compact
-     * JSON like `{"text": "hello world"}` / `{"partial": "hel"}`; a minimal
-     * substring parse avoids pulling a JSON dependency into this stretch feature.
-     */
-    private fun parseResult(json: String): String? {
-        val key = "\"text\""
-        val textIdx = json.indexOf(key)
-        val source = if (textIdx >= 0) json.substring(textIdx) else json
-        val start = source.indexOf(':')
-        if (start < 0) return null
-        val open = source.indexOf('"', start + 1)
-        if (open < 0) return null
-        val close = source.indexOf('"', open + 1)
-        if (close < 0) return null
-        return source.substring(open + 1, close).trim()
-    }
+    private suspend fun resolveModelDir(): java.io.File = withContext(Dispatchers.IO) {
+        val dest = java.io.File(appContext.filesDir, "whisper-model.bin")
+        if (dest.exists() && dest.length() > 0) return@withContext dest
 
-    /**
-     * Resolves the Vosk model directory.
-     *
-     * Priority:
-     *  1. A previously-unpacked model in app-private storage
-     *     (`filesDir/vosk-model/`) — the canonical post-download location.
-     *  2. A developer-supplied local asset fallback
-     *     (`assets/models/vosk-model/`), for testing without a download.
-     *
-     * If neither is present, the small English model
-     * (`vosk-model-small-en-us-0.15`, ~41 MB) is downloaded from the official
-     * Vosk model CDN and stream-unzipped into location #1, so the first CC
-     * toggle self-provisions the model (no manual setup). The download runs on
-     * [Dispatchers.IO]; [loadError] surfaces any failure.
-     */
-    private suspend fun resolveModelDir(): File {
-        val downloaded = downloadedModelDir(appContext)
-        if (downloaded.isDirectory && downloaded.listFiles()?.isNotEmpty() == true) {
-            return downloaded
-        }
-        // Local-asset fallback: copy once from assets, if present.
-        val assetDir = copyAssetModelIfNeeded(appContext)
-        if (assetDir != null) return assetDir
-        // Network self-provision: download + unzip the small model on first use.
-        downloadAndUnzipModel(downloaded)
-        return downloaded
-    }
-
-    /**
-     * Downloads the small English model zip from the Vosk CDN and stream-unzips
-     * it into [dest]. The zip's top-level dir (`vosk-model-small-en-us-0.15/`)
-     * is stripped so the model files land directly in [dest].
-     */
-    private suspend fun downloadAndUnzipModel(dest: File) {
-        withContext(Dispatchers.IO) {
-            dest.mkdirs()
-            val tmpZip = File(dest, "model.zip")
-            try {
-                downloadTo(MODEL_URL, tmpZip)
-                unzipFlatteningTopDir(tmpZip, dest)
-            } finally {
-                tmpZip.delete()
-            }
-        }
-    }
-
-    private fun downloadTo(url: String, dest: File) {
-        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 60_000
-            instanceFollowRedirects = true
-        }
-        connection.inputStream.use { input ->
-            dest.outputStream().use { input.copyTo(it) }
-        }
-        if (connection.responseCode !in 200..299) {
-            throw IOException("Model download failed: HTTP ${connection.responseCode}")
-        }
-    }
-
-    /** Unzips [zip] into [dest], stripping a single top-level directory if present. */
-    private fun unzipFlatteningTopDir(zip: File, dest: File) {
-        // Canonical target dir, used to reject entries that escape it (see below).
-        val destCanonicalPath = dest.canonicalPath
-        java.util.zip.ZipInputStream(zip.inputStream().buffered()).use { zis ->
-            while (true) {
-                val entry = zis.nextEntry ?: break
-                if (entry.isDirectory) continue
-                // Strip the first path segment if the archive nests under one dir
-                // (vosk-model-small-en-us-0.15/...  →  ...).
-                val rawPath = entry.name
-                val topDirEnd = rawPath.indexOf('/')
-                val relativePath = if (topDirEnd >= 0 && topDirEnd < rawPath.length - 1) {
-                    rawPath.substring(topDirEnd + 1)
-                } else {
-                    rawPath
+        // Download from HuggingFace directly to the bin file.
+        val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin"
+        val temp = java.io.File(appContext.filesDir, "whisper-model.tmp")
+        Log.i(TAG, "Downloading Whisper model from $url")
+        var bytesRead = 0L
+        var lastLog = System.currentTimeMillis()
+        try {
+            java.net.URL(url).openStream().use { input ->
+                temp.outputStream().use { output ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        output.write(buffer, 0, read)
+                        bytesRead += read
+                        val now = System.currentTimeMillis()
+                        if (now - lastLog > 2000) {
+                            Log.d(TAG, "Downloading model... ${bytesRead / 1024 / 1024} MB")
+                            lastLog = now
+                        }
+                    }
                 }
-                val outFile = File(dest, relativePath)
-                if (entry.name.contains("..")) {
-                    throw SecurityException("Zip entry contains path traversal characters: $rawPath")
-                }
-                val destCanonicalDir = destCanonicalPath + File.separator
-                if (!outFile.canonicalPath.startsWith(destCanonicalDir) && outFile.canonicalPath != destCanonicalPath) {
-                    throw SecurityException("Zip entry escapes target directory: $rawPath")
-                }
-                outFile.parentFile?.mkdirs()
-                outFile.outputStream().use { zis.copyTo(it) }
-                zis.closeEntry()
             }
-        }
-    }
-
-    private suspend fun copyAssetModelIfNeeded(context: Context): File? {
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                val list = context.assets.list("models/vosk-model") ?: return@withContext null
-                if (list.isEmpty()) return@withContext null
-                val dest = downloadedModelDir(context)
-                dest.mkdirs()
-                // Recursive copy: a real model has nested dirs.
-                copyAssetDir(context, "models/vosk-model", dest)
-                dest
-            }.getOrNull()
-        }
-    }
-
-    private fun copyAssetDir(context: Context, assetPath: String, dest: File) {
-        val list = context.assets.list(assetPath) ?: return
-        if (list.isEmpty()) {
-            // Leaf file.
-            context.assets.open(assetPath).use { input ->
-                dest.outputStream().use { input.copyTo(it) }
-            }
-        } else {
-            dest.mkdirs()
-            for (name in list) {
-                copyAssetDir(context, "$assetPath/$name", File(dest, name))
-            }
+            temp.renameTo(dest)
+            Log.i(TAG, "Whisper model successfully downloaded to ${dest.absolutePath}")
+            return@withContext dest
+        } catch (e: Exception) {
+            temp.delete()
+            throw IOException("Failed to download Whisper model", e)
         }
     }
 
     companion object {
-        /**
-         * The small English Vosk model, downloaded on first CC toggle. The
-         * official Vosk model CDN; ~41 MB. Ship-the-model-as-an-asset is
-         * intentionally avoided (~50 MB in the APK) — this self-provisions.
-         */
-        private const val MODEL_URL =
-            "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-
-        /** The on-disk location a downloaded model is unpacked into. */
-        fun downloadedModelDir(context: Context): File =
-            File(context.filesDir, "vosk-model")
-
         @Volatile
         private var instance: TranscriptionEngine? = null
 
