@@ -74,16 +74,18 @@ public final class com/livingpresence/mediakit/PlaylistInspector {
 }
 
 public final class com/livingpresence/mediakit/PlaylistInspector$MediaPlaylist {
-	public fun <init> (ZDII)V
+	public fun <init> (ZDIILjava/util/List;)V
 	public final fun component1 ()Z
 	public final fun component2 ()D
 	public final fun component3 ()I
 	public final fun component4 ()I
-	public final fun copy (ZDII)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
-	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;ZDIIILjava/lang/Object;)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
+	public final fun component5 ()Ljava/util/List;
+	public final fun copy (ZDIILjava/util/List;)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
+	public static synthetic fun copy$default (Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;ZDIILjava/util/List;ILjava/lang/Object;)Lcom/livingpresence/mediakit/PlaylistInspector$MediaPlaylist;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDurationSeconds ()D
 	public final fun getSegmentCount ()I
+	public final fun getSegmentUris ()Ljava/util/List;
 	public final fun getTargetDurationSeconds ()I
 	public fun hashCode ()I
 	public final fun isLive ()Z
