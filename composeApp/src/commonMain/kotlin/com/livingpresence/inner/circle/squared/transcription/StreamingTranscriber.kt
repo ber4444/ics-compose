@@ -13,7 +13,7 @@ enum class TranscriberStatus { IDLE, CONNECTING, LISTENING, ERROR }
  *
  * **PCM contract:** [feedPcm] expects **16 kHz, mono, signed 16-bit little-endian**
  * frames. Resampling from the source (usually 48 kHz stereo) happens on the caller's
- * side (Android reuses the anti-aliased resampler in `TranscriptionEngine`).
+ * side (on Android, the anti-aliased resampler in `CaptionAudioRouter`).
  *
  * Implementations are cloud websocket clients and live in `commonMain`, so the same
  * code runs on Android, iOS and web — only the audio tap and key source differ.

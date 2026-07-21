@@ -21,14 +21,14 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Renders the rolling in-app transcript along the bottom of the player.
  *
- * Backed by [TranscriptionEngine.captions]; the active partial (open) cue and
- * the most recent finalized cues are shown so the user gets continuous context
- * (a single live line would lose the previous sentence). The overlay is a plain
- * no-op when captions are empty — its visibility is controlled by the caller
- * (shown only while the CC toggle is on).
+ * Backed by the live caption stream ([CaptionAudioRouter]); the active partial
+ * (open) cue and the most recent finalized cues are shown so the user gets
+ * continuous context (a single live line would lose the previous sentence). The
+ * overlay is a plain no-op when captions are empty — its visibility is controlled
+ * by the caller (shown only while the CC toggle is on).
  *
- * @param captions the engine's caption stream.
- * @param maxLines how many recent cues to render (the engine caps its history).
+ * @param captions the router's caption stream.
+ * @param maxLines how many recent cues to render (the accumulator caps its history).
  */
 @Composable
 internal fun CaptionOverlay(
