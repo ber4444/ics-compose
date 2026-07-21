@@ -32,7 +32,7 @@ import java.nio.ByteBuffer
 @UnstableApi
 internal class TranscriptionRenderersFactory(
     context: Context,
-    private val engine: TranscriptionEngine,
+    private val sink: PcmTapSink,
 ) : DefaultRenderersFactory(context) {
 
     init {
@@ -52,7 +52,7 @@ internal class TranscriptionRenderersFactory(
         enableFloatOutput: Boolean,
         enableAudioTrackPlaybackParams: Boolean,
     ): AudioSink {
-        val transcriptionTap = TeeAudioProcessor(CaptionAudioBufferSink(engine))
+        val transcriptionTap = TeeAudioProcessor(CaptionAudioBufferSink(sink))
         val builder = DefaultAudioSink.Builder(context)
             .setAudioProcessors(arrayOf<AudioProcessor>(transcriptionTap))
             .setEnableFloatOutput(enableFloatOutput)
@@ -71,7 +71,7 @@ internal class TranscriptionRenderersFactory(
  */
 @UnstableApi
 private class CaptionAudioBufferSink(
-    private val engine: TranscriptionEngine,
+    private val sink: PcmTapSink,
 ) : TeeAudioProcessor.AudioBufferSink {
 
     private var sampleRate = 48000
@@ -82,15 +82,15 @@ private class CaptionAudioBufferSink(
         this.sampleRate = sampleRate
         this.channelCount = channelCount
         this.encoding = encoding
-        android.util.Log.d("TranscriptionEngine", "AudioSink flush: rate=$sampleRate, channels=$channelCount, encoding=$encoding")
+        android.util.Log.d("CaptionAudioRouter", "AudioSink flush: rate=$sampleRate, channels=$channelCount, encoding=$encoding")
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
-        if (encoding != android.media.AudioFormat.ENCODING_PCM_16BIT && 
+        if (encoding != android.media.AudioFormat.ENCODING_PCM_16BIT &&
             encoding != android.media.AudioFormat.ENCODING_PCM_FLOAT) {
             return
         }
         if (!buffer.hasRemaining()) return
-        engine.feedPcm(buffer, sampleRate, channelCount, encoding)
+        sink.onPcm(buffer, sampleRate, channelCount, encoding)
     }
 }

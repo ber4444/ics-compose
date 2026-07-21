@@ -3,6 +3,7 @@ package com.livingpresence.inner.circle.squared
 import android.app.Activity
 import android.graphics.Bitmap
 import android.util.Log
+import com.livingpresence.inner.circle.squared.transcription.TranscriptionProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -172,7 +173,7 @@ private fun ExoPlayerScreen(
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
     // taps PCM; captions render via CaptionOverlay below. Lazily downloads the
-    // Whisper model on first enable (~147 MB, from Hugging Face, not bundled).
+    // Whisper model on first enable (~147 MB base.en, from Hugging Face, not bundled).
     val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
@@ -364,7 +365,10 @@ private fun ExoPlayerScreen(
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
-                            // Phase 8: closed-captions toggle (on-device Whisper).
+                            // Live captions: provider switch (shown when on) + CC toggle.
+                            if (captionController.enabled) {
+                                CaptionProviderButton(controller = captionController)
+                            }
                             CaptionToggleButton(controller = captionController)
                         }
                     }
@@ -642,20 +646,34 @@ private fun PlayerControlPanel(
 
 @Composable
 private fun CaptionToggleButton(controller: CaptionController) {
-    val ready by controller.ready.collectAsState()
-    val loadError by controller.loadError.collectAsState()
+    val status by controller.status.collectAsState()
+    val error by controller.error.collectAsState()
     val label = when {
-        controller.enabled && loadError != null -> "CC!"
-        controller.enabled && !ready && controller.downloadProgress > 0 && controller.downloadProgress < 100 -> "${controller.downloadProgress}%"
-        controller.enabled && !ready -> "CC…"
-        controller.enabled -> "CC●"
-        else -> "CC"
+        !controller.enabled -> "CC"
+        error != null -> "CC!"
+        status == com.livingpresence.inner.circle.squared.transcription.TranscriberStatus.CONNECTING -> "CC…"
+        status == com.livingpresence.inner.circle.squared.transcription.TranscriberStatus.ERROR -> "CC!"
+        else -> "CC●"
     }
     TextButton(onClick = controller.onToggle) {
         Text(
             text = label,
             color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
         )
+    }
+}
+
+/** Tap to cycle the live streaming provider (Deepgram ↔ Soniox). */
+@Composable
+private fun CaptionProviderButton(controller: CaptionController) {
+    TextButton(onClick = {
+        val next = when (controller.provider) {
+            TranscriptionProvider.DEEPGRAM -> TranscriptionProvider.SONIOX
+            TranscriptionProvider.SONIOX -> TranscriptionProvider.DEEPGRAM
+        }
+        controller.onSelectProvider(next)
+    }) {
+        Text(text = controller.provider.label, color = Color.White.copy(alpha = 0.85f))
     }
 }
 

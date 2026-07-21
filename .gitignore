@@ -38,6 +38,10 @@ build/
 */build/
 local.properties
 
+# API keys for transcription providers (Deepgram/Soniox) — never commit.
+# Copy secrets.properties.example → secrets.properties and fill in.
+secrets.properties
+
 # Android Studio
 captures/
 .externalNativeBuild

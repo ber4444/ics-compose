@@ -7,84 +7,73 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.media3.common.Player
-import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.collectAsState
+import androidx.media3.common.Player
+import com.livingpresence.inner.circle.squared.transcription.TranscriberStatus
+import com.livingpresence.inner.circle.squared.transcription.TranscriptionProvider
+import com.livingpresence.inner.circle.squared.transcription.TranscriptionSettings
+import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Holds the in-app transcription state for a player screen: the CC toggle and
- * the engine's caption stream.
+ * UI-facing controller for live captions: the CC toggle, the selected streaming
+ * provider (Deepgram/Soniox), and the caption/status streams.
  *
- * The engine itself is a process singleton owned by [PlaybackService] (it taps
- * PCM via the service player's [TranscriptionRenderersFactory]); this holder is
- * the UI-facing controller that starts/stops recognition and surfaces captions.
- *
- * Recognition is started/stopped against the *controller* player's position
- * clock. Because the controller fronts the service player, its
- * `currentPosition` mirrors content position — good enough to stamp cues.
+ * Recognition runs in [CaptionAudioRouter] (a process singleton fed by the
+ * service player's PCM tap); this holder just starts/stops it and switches the
+ * provider. Cloud ASR needs no player position clock, so unlike the old on-device
+ * engine there's no position wiring here.
  *
  * @param enabled whether the user has toggled CC on.
- * @param ready the engine's model-ready stream.
- * @param loadError the engine's model-load error stream.
- * @param captions the engine's caption stream.
+ * @param provider the active streaming ASR provider.
+ * @param status the router's connection/lifecycle state.
+ * @param error the router's last error (missing key, connection failure, …).
+ * @param captions the router's caption stream.
  * @param onToggle flips [enabled].
+ * @param onSelectProvider switches the streaming provider.
  */
 internal class CaptionController(
     val enabled: Boolean,
-    val ready: StateFlow<Boolean>,
-    val loadError: StateFlow<String?>,
+    val provider: TranscriptionProvider,
+    val status: StateFlow<TranscriberStatus>,
+    val error: StateFlow<String?>,
     val captions: StateFlow<List<CaptionCue>>,
-    val downloadProgress: Int,
     val onToggle: () -> Unit,
+    val onSelectProvider: (TranscriptionProvider) -> Unit,
 )
 
 /**
- * Remembers a [CaptionController] bound to [player]. Lazily loads the model on
- * first enable; stops recognition on disable/leave.
+ * Remembers a [CaptionController]. Starts streaming to the selected provider on
+ * enable (and when the provider changes); stops on disable or when the screen leaves.
+ *
+ * [player] is currently unused (cloud ASR is driven by the PCM tap, not the player
+ * clock) but kept in the signature for parity with the on-device path.
  */
 @Composable
-internal fun rememberCaptionController(player: Player?): CaptionController {
-    val context = LocalContext.current
-    val engine = remember { TranscriptionEngine.get(context) }
-
+internal fun rememberCaptionController(@Suppress("UNUSED_PARAMETER") player: Player?): CaptionController {
+    val router = remember { CaptionAudioRouter.get() }
     var enabled by remember { mutableStateOf(false) }
+    val provider by TranscriptionSettings.provider.collectAsState()
 
-    // Toggle: enable → ensure model + start; disable → stop.
-    LaunchedEffect(enabled, player) {
-        if (player == null) return@LaunchedEffect
-        if (enabled) {
-            engine.loadModel()
-            engine.start(playerPositionProvider = { 
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    player.currentPosition.coerceAtLeast(0L) 
-                }
-            })
-        } else {
-            engine.stop()
-        }
+    // Enable → start (or switch to) the selected provider; disable → stop.
+    // Re-runs when the provider changes while enabled, switching the live stream.
+    LaunchedEffect(enabled, provider) {
+        if (enabled) router.enable(provider) else router.disable()
     }
 
-    // Stop recognition if the player leaves the composition (screen closed).
-    DisposableEffect(player) {
-        onDispose {
-            if (enabled) engine.stop()
-        }
+    // Stop streaming if the player screen leaves the composition.
+    DisposableEffect(Unit) {
+        onDispose { router.disable() }
     }
 
-    val ready by engine.ready.collectAsState()
-    val loadError by engine.loadError.collectAsState()
-    val downloadProgress by engine.downloadProgress.collectAsState()
-
-    // Pass latest values to a stable controller wrapper.
-    return remember(engine, enabled, ready, loadError, downloadProgress) {
+    return remember(router, enabled, provider) {
         CaptionController(
             enabled = enabled,
-            ready = engine.ready,
-            loadError = engine.loadError,
-            captions = engine.captions,
-            downloadProgress = downloadProgress,
-            onToggle = { enabled = !enabled }
+            provider = provider,
+            status = router.status,
+            error = router.error,
+            captions = router.captions,
+            onToggle = { enabled = !enabled },
+            onSelectProvider = { TranscriptionSettings.select(it) },
         )
     }
 }

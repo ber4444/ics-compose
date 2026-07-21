@@ -6,9 +6,13 @@ import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +41,43 @@ internal const val TARGET_SAMPLE_RATE_HZ = 16_000
 
 /** How many finalized cues are retained in the overlay (a rolling transcript). */
 private const val MAX_CUES = 30
+
+/**
+ * Recognition cadence. Audio is transcribed in fixed windows so each Whisper run
+ * produces a distinct caption; consecutive windows overlap slightly so a word
+ * straddling a boundary isn't chopped.
+ */
+private const val CHUNK_SECONDS = 4
+private const val OVERLAP_SECONDS = 1
+
+/**
+ * Upper bound on buffered-but-not-yet-transcribed audio. Inference is slower than
+ * real time on-device, so when it can't keep up the oldest audio past this cap is
+ * dropped — we always transcribe *recent* speech instead of falling ever further
+ * behind, and memory stays bounded regardless of how long CC is left on.
+ */
+private const val MAX_BACKLOG_SECONDS = 8
+
+/**
+ * Whisper worker-thread count. The 0%-CPU deadlock we hit earlier was on the
+ * unoptimized (`-O0`) debug native build; with the optimized (`-O3 -DNDEBUG`)
+ * build the GGML barrier is stable, so we use multiple threads to keep the
+ * heavier base.en model near real time. Drop back to 1 if a hang ever recurs.
+ */
+private const val INFERENCE_THREADS = 4
+
+/** Peak |sample| below which a window is treated as silence and skipped (Whisper hallucinates on silence). */
+private const val SILENCE_PEAK = 0.005f
+
+/**
+ * The on-device Whisper model. `base.en` (~147 MB) is used over `tiny.en` for
+ * markedly better accuracy; with the optimized (`-O3`) native build and
+ * multi-threaded inference it still keeps up with playback. The file is named
+ * after the model so switching models auto-replaces the old one on disk.
+ */
+private const val MODEL_FILE = "ggml-base.en.bin"
+private const val MODEL_URL =
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
 
 /**
  * On-device speech recognition (plan.md Phase 8, part B).
@@ -79,9 +120,29 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     val downloadProgress: StateFlow<Int> = _downloadProgress.asStateFlow()
 
     private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var recognizerJob: Job? = null
 
-    /** PCM handoff queue: [feedPcm] (audio thread) → recognizer (background). */
+    /** Drains [pcmQueue] → resamples → cuts fixed windows for the recognizer. Never blocks on inference. */
+    private var ingestJob: Job? = null
+
+    /** Runs the (blocking, sometimes-slow) Whisper calls, decoupled from ingestion. */
+    private var inferenceJob: Job? = null
+
+    /**
+     * Single-slot handoff from [ingestLoop] to [inferenceLoop]: the latest window
+     * awaiting transcription. Ingest only fills it when empty, so while a run is
+     * in flight new audio keeps accumulating and only the newest window is handed
+     * over next — old backlog is dropped, keeping captions current.
+     */
+    private val readyChunk = AtomicReference<FloatArray?>(null)
+
+    /**
+     * Dedicated single worker for [WhisperJNI.full]. One thread only, so calls are
+     * serialized and the (non-thread-safe) [WhisperContext] is never touched by two
+     * runs at once.
+     */
+    private val inferenceExecutor: ExecutorService = newInferenceExecutor()
+
+    /** PCM handoff queue: [feedPcm] (audio thread) → [ingestLoop] (background). */
     private val pcmQueue = LinkedBlockingQueue<PcmChunk>(64)
     private val running = AtomicBoolean(false)
 
@@ -122,32 +183,45 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         }.join()
     }
 
-    /** Starts listening to [feedPcm] and pushing [captions]. Models must be loaded. */
+    /**
+     * Starts the decoupled ingest + inference loops and begins pushing [captions].
+     * The model must be (or become) loaded. Idempotent; pairs with [stop].
+     */
     fun start(playerPositionProvider: suspend () -> Long) {
         if (!running.compareAndSet(false, true)) return
-        recognizerJob?.cancel()
-        recognizerJob = engineScope.launch(Dispatchers.Default) {
+        ingestJob?.cancel()
+        inferenceJob?.cancel()
+        readyChunk.set(null)
+        // Ingestion runs regardless of model state; [feedPcm] gates PCM on the
+        // model being loaded, so nothing accumulates until the recognizer is ready.
+        ingestJob = engineScope.launch(Dispatchers.Default) {
+            ingestLoop(playerPositionProvider)
+        }
+        inferenceJob = engineScope.launch(Dispatchers.Default) {
             // Wait for the model if load was deferred to the toggle.
             var waited = 0
             while (whisperContext == null && waited < 5_000) {
                 delay(100)
                 waited += 100
             }
-            if (whisperContext == null) {
+            val ctx = whisperContext ?: run {
                 Log.w(TAG, "Recognizer start aborted: no model.")
                 running.set(false)
                 return@launch
             }
-            recognizeLoop(playerPositionProvider)
+            inferenceLoop(ctx)
         }
     }
 
-    /** Stops the recognizer and drains the PCM queue. Keeps the model loaded. */
+    /** Stops both loops and drains buffered audio. Keeps the model loaded. */
     fun stop() {
         if (!running.compareAndSet(true, false)) return
-        recognizerJob?.cancel()
-        recognizerJob = null
+        ingestJob?.cancel()
+        inferenceJob?.cancel()
+        ingestJob = null
+        inferenceJob = null
         pcmQueue.clear()
+        readyChunk.set(null)
     }
 
     /**
@@ -170,19 +244,26 @@ internal class TranscriptionEngine private constructor(private val appContext: C
         whisperContext = null
         _ready.value = false
         _captions.value = emptyList()
+        inferenceExecutor.shutdownNow()
         engineScope.cancel()
     }
 
     // -- internals ----------------------------------------------------------
 
     /**
-     * Pulls PCM chunks off the queue, resamples to 16 kHz mono Float32, and feeds Whisper.
+     * Ingestion: pulls PCM off the queue, resamples to 16 kHz mono float, and cuts
+     * fixed [CHUNK_SECONDS] windows for the recognizer. Runs independently of
+     * inference — it never blocks on a Whisper call, so audio is never dropped
+     * just because a transcription is in flight. When inference falls behind, only
+     * the newest window is handed over next (see [readyChunk]) and stale backlog
+     * beyond [MAX_BACKLOG_SECONDS] is discarded.
      */
-    private suspend fun recognizeLoop(playerPositionProvider: suspend () -> Long) {
-        val ctx = whisperContext ?: return
-        var accumulatedFloats = FloatArray(0)
-        
-        android.util.Log.d(TAG, "recognizeLoop started")
+    private suspend fun ingestLoop(playerPositionProvider: suspend () -> Long) {
+        Log.d(TAG, "ingestLoop started")
+        val chunkSamples = TARGET_SAMPLE_RATE_HZ * CHUNK_SECONDS
+        val overlapSamples = TARGET_SAMPLE_RATE_HZ * OVERLAP_SECONDS
+        val maxBacklogSamples = TARGET_SAMPLE_RATE_HZ * MAX_BACKLOG_SECONDS
+        var pending = FloatArray(0)
         while (running.get()) {
             val polled = pcmQueue.poll(50, TimeUnit.MILLISECONDS)
             if (polled == null) {
@@ -192,64 +273,103 @@ internal class TranscriptionEngine private constructor(private val appContext: C
             contentPositionMs = playerPositionProvider()
             val floats = resampleTo16kMonoFloat(polled.bytes, polled.sampleRateHz, polled.channels, polled.encoding)
             if (floats.isEmpty()) continue
-            
-            // Accumulate up to ~5 seconds of audio for streaming chunks
-            val newAccumulated = FloatArray(accumulatedFloats.size + floats.size)
-            System.arraycopy(accumulatedFloats, 0, newAccumulated, 0, accumulatedFloats.size)
-            System.arraycopy(floats, 0, newAccumulated, accumulatedFloats.size, floats.size)
-            accumulatedFloats = newAccumulated
-            
-            // If we have > 3 seconds of audio, process it
-            if (accumulatedFloats.size > TARGET_SAMPLE_RATE_HZ * 3) {
-                var isSilence = true
-                for (f in accumulatedFloats) {
-                    if (kotlin.math.abs(f) > 0.005f) {
-                        isSilence = false
-                        break
-                    }
-                }
-                if (isSilence) {
-                    android.util.Log.d(TAG, "Audio is silent, skipping inference")
-                    accumulatedFloats = FloatArray(0)
-                    continue
-                }
-
-                android.util.Log.d(TAG, "Running inference on ${accumulatedFloats.size} floats")
-                val params = WhisperFullParams(WhisperSamplingStrategy.GREEDY)
-                params.printProgress = false
-                params.printSpecial = false
-                params.printRealtime = false
-                params.nThreads = 4
-                params.language = "en"
-                
-                runCatching { whisper.full(ctx, params, accumulatedFloats, accumulatedFloats.size) }
-                    .onSuccess {
-                        val numSegments = whisper.fullNSegments(ctx)
-                        android.util.Log.d(TAG, "Inference success, numSegments=$numSegments")
-                        val textBuilder = StringBuilder()
-                        for (i in 0 until numSegments) {
-                            textBuilder.append(whisper.fullGetSegmentText(ctx, i))
-                        }
-                        val final = textBuilder.toString().trim()
-                        android.util.Log.d(TAG, "Recognized text: '$final'")
-                        if (final.isNotBlank()) {
-                            appendFinalCue(final, contentPositionMs)
-                        }
-                        // Keep the last second for overlap context to avoid chopping words
-                        val keepSize = TARGET_SAMPLE_RATE_HZ * 1
-                        val keepArray = FloatArray(keepSize)
-                        if (accumulatedFloats.size > keepSize) {
-                            System.arraycopy(accumulatedFloats, accumulatedFloats.size - keepSize, keepArray, 0, keepSize)
-                            accumulatedFloats = keepArray
-                        } else {
-                            accumulatedFloats = FloatArray(0)
-                        }
-                    }
-                    .onFailure {
-                        Log.w(TAG, "Whisper inference failed", it)
-                    }
+            pending = appendFloats(pending, floats)
+            // If inference falls behind, drop the OLDEST audio so latency (and
+            // memory) stay bounded. Because we process front-to-back, this sheds
+            // the least-recent unseen audio rather than the speech playing now.
+            if (pending.size > maxBacklogSamples) {
+                pending = pending.copyOfRange(pending.size - maxBacklogSamples, pending.size)
+            }
+            // Hand the OLDEST full window to the recognizer whenever it's idle, so
+            // captions cover speech contiguously and in order; keep a short overlap
+            // tail so a word crossing the boundary isn't chopped in two.
+            if (pending.size >= chunkSamples && readyChunk.get() == null) {
+                val chunk = pending.copyOfRange(0, chunkSamples)
+                val advance = (chunkSamples - overlapSamples).coerceAtLeast(1)
+                pending = pending.copyOfRange(advance, pending.size)
+                if (!isSilent(chunk)) readyChunk.set(chunk)
             }
         }
+    }
+
+    /**
+     * Inference: transcribes whatever window [ingestLoop] hands over, one at a
+     * time via [runInference]. Publishes each result as a finalized [CaptionCue].
+     */
+    private suspend fun inferenceLoop(ctx: WhisperContext) {
+        Log.d(TAG, "inferenceLoop started")
+        while (running.get()) {
+            val chunk = readyChunk.get()
+            if (chunk == null) {
+                delay(20)
+                continue
+            }
+            val positionMs = contentPositionMs
+            val text = runInference(ctx, chunk)
+            // Free the slot so ingestion can hand over the next (newest) window.
+            readyChunk.set(null)
+            if (!text.isNullOrBlank()) {
+                Log.d(TAG, "Recognized text: '$text'")
+                appendFinalCue(text, positionMs)
+            }
+        }
+    }
+
+    /**
+     * Runs a single [WhisperJNI.full] on the dedicated [inferenceExecutor] and
+     * returns the recognized text (null on failure).
+     *
+     * Calls are **strictly serial** on one thread and we always wait for each to
+     * finish: a [WhisperContext] is not thread-safe, so a second `full()` must
+     * never touch it while a prior one is still running. (An earlier version used
+     * a timeout that abandoned a slow call and started the next — two `full()`s
+     * then raced on the same context and crashed the process natively.) Ingestion
+     * runs on its own coroutine and keeps draining regardless, so blocking here
+     * doesn't drop audio; a slow run just means the next window is newer.
+     */
+    private suspend fun runInference(ctx: WhisperContext, samples: FloatArray): String? {
+        val task = inferenceExecutor.submit(Callable {
+            val params = WhisperFullParams(WhisperSamplingStrategy.GREEDY).apply {
+                printProgress = false
+                printSpecial = false
+                printRealtime = false
+                printTimestamps = false
+                noTimestamps = true
+                noContext = true
+                singleSegment = false
+                suppressBlank = true
+                suppressNonSpeechTokens = true
+                nThreads = INFERENCE_THREADS
+                language = "en"
+            }
+            val startedAt = System.currentTimeMillis()
+            whisper.full(ctx, params, samples, samples.size)
+            val numSegments = whisper.fullNSegments(ctx)
+            val text = buildString {
+                for (i in 0 until numSegments) append(whisper.fullGetSegmentText(ctx, i))
+            }.trim()
+            Log.d(TAG, "inference: ${samples.size} samples in ${System.currentTimeMillis() - startedAt}ms → $numSegments seg")
+            text
+        })
+        return withContext(Dispatchers.IO) {
+            runCatching { task.get() }.getOrElse { e -> Log.w(TAG, "Whisper inference failed", e); null }
+        }
+    }
+
+    private fun newInferenceExecutor(): ExecutorService =
+        Executors.newSingleThreadExecutor { r -> Thread(r, "whisper-infer").apply { isDaemon = true } }
+
+    /** True when every sample is below [SILENCE_PEAK] (skip to avoid Whisper hallucinating on silence). */
+    private fun isSilent(samples: FloatArray): Boolean {
+        for (s in samples) if (kotlin.math.abs(s) > SILENCE_PEAK) return false
+        return true
+    }
+
+    private fun appendFloats(head: FloatArray, tail: FloatArray): FloatArray {
+        val out = FloatArray(head.size + tail.size)
+        System.arraycopy(head, 0, out, 0, head.size)
+        System.arraycopy(tail, 0, out, head.size, tail.size)
+        return out
     }
 
     /**
@@ -281,22 +401,22 @@ internal class TranscriptionEngine private constructor(private val appContext: C
             out
         }
         
-        // Linear decimation to TARGET_SAMPLE_RATE_HZ.
         val inFrames = mono.size
-        val outFrames = if (inRate == TARGET_SAMPLE_RATE_HZ) {
-            inFrames
-        } else {
-            (inFrames * TARGET_SAMPLE_RATE_HZ.toDouble() / inRate).toInt()
-        }
+        if (inRate == TARGET_SAMPLE_RATE_HZ) return mono
+        // Anti-aliased decimation. Taking every Nth sample (what this used to do)
+        // aliases all energy above 8 kHz back into the speech band and audibly
+        // garbles what Whisper hears; averaging each source window is a cheap
+        // low-pass that removes most of that and materially improves accuracy.
+        val outFrames = (inFrames.toLong() * TARGET_SAMPLE_RATE_HZ / inRate).toInt()
+        if (outFrames <= 0) return FloatArray(0)
         val out = FloatArray(outFrames)
-        if (inRate == TARGET_SAMPLE_RATE_HZ) {
-            System.arraycopy(mono, 0, out, 0, outFrames)
-        } else {
-            val ratio = inRate.toFloat() / TARGET_SAMPLE_RATE_HZ
-            for (i in 0 until outFrames) {
-                val inIdx = (i * ratio).toInt().coerceAtMost(mono.size - 1)
-                out[i] = mono[inIdx]
-            }
+        val step = inFrames.toDouble() / outFrames
+        for (i in 0 until outFrames) {
+            val start = (i * step).toInt()
+            val end = ((i + 1) * step).toInt().coerceIn(start + 1, inFrames)
+            var sum = 0f
+            for (j in start until end) sum += mono[j]
+            out[i] = sum / (end - start)
         }
         return out
     }
@@ -320,21 +440,24 @@ internal class TranscriptionEngine private constructor(private val appContext: C
     }
 
     private suspend fun resolveModelDir(): java.io.File = withContext(Dispatchers.IO) {
-        val dest = java.io.File(appContext.filesDir, "whisper-model.bin")
-        if (dest.exists() && dest.length() > 200_000_000L) {
-            Log.i(TAG, "Deleting old large model to replace with base.en")
-            dest.delete()
-        }
+        val dest = java.io.File(appContext.filesDir, MODEL_FILE)
+        // Remove any earlier model file (e.g. the old base.en `whisper-model.bin`,
+        // ~147 MB) so switching models doesn't leave a large unused blob behind.
+        appContext.filesDir.listFiles()
+            ?.filter { it.isFile && it.name != MODEL_FILE && (it.name.startsWith("ggml-") || it.name == "whisper-model.bin") }
+            ?.forEach { stale ->
+                Log.i(TAG, "Removing stale Whisper model ${stale.name} (${stale.length() / 1024 / 1024} MB)")
+                stale.delete()
+            }
         if (dest.exists() && dest.length() > 0) return@withContext dest
 
         // Download from HuggingFace directly to the bin file.
-        val url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
-        val temp = java.io.File(appContext.filesDir, "whisper-model.tmp")
-        Log.i(TAG, "Downloading Whisper model from $url")
+        val temp = java.io.File(appContext.filesDir, "$MODEL_FILE.tmp")
+        Log.i(TAG, "Downloading Whisper model from $MODEL_URL")
         var bytesRead = 0L
         var lastLog = System.currentTimeMillis()
         try {
-            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            val connection = java.net.URL(MODEL_URL).openConnection() as java.net.HttpURLConnection
             connection.connect()
             val totalBytes = connection.contentLength.toLong()
             
