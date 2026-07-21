@@ -56,12 +56,6 @@ val transcriptionSecrets = Properties().apply {
 
 androidComponents {
     onVariants { variant ->
-        val eventsPassword = (project.findProperty("icsEventsPassword") as String?) ?: "SECRET"
-        variant.buildConfigFields?.put("EVENTS_PASSWORD", com.android.build.api.variant.BuildConfigField("String", "\"$eventsPassword\"", "Login-gate password"))
-
-        val verticalDemoUrl = (project.findProperty("icsVerticalDemoUrl") as String?) ?: ""
-        variant.buildConfigFields?.put("VERTICAL_DEMO_URL", com.android.build.api.variant.BuildConfigField("String", "\"$verticalDemoUrl\"", "Vertical demo URL"))
-
         val deepgramKey = transcriptionSecrets.getProperty("DEEPGRAM_API_KEY", "")
         variant.buildConfigFields?.put("DEEPGRAM_API_KEY", com.android.build.api.variant.BuildConfigField("String", "\"$deepgramKey\"", "Deepgram API key (local, gitignored)"))
 

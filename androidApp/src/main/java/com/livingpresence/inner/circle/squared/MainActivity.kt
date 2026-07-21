@@ -38,7 +38,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        HostBridge.verticalDemoUrl = { BuildConfig.VERTICAL_DEMO_URL }
         HostBridge.isDebug = { BuildConfig.DEBUG }
 
         // Streaming-ASR keys from the gitignored secrets.properties (via BuildConfig).

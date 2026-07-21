@@ -9,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
  * shared Kotlin Multiplatform UI module (:composeApp).
  */
 object HostBridge {
-    var verticalDemoUrl: () -> String = { "" }
     var isDebug: () -> Boolean = { false }
 
     /** Whether the activity is currently in PiP, observed by the player UI. */

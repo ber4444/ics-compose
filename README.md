@@ -66,36 +66,7 @@ audio/PiP.
 
 ## Engineering decisions
 
-The load-bearing design calls and the reasoning behind them. Full detail in
-[`plan.md`](./plan.md) §"Scrutiny".
-
-- **Client-side ladder synthesis** — the server's master advertises only one
-  720p variant, but four segment-aligned siblings exist (`_360p`/`_160p`/`_aac`).
-  `LadderSynthesizer` probes them just-in-time (chunklist `w`-tokens rotate) and
-  emits a spec-correct multivariant playlist fed via a `data:` URI. The result is
-  **genuine ABR on the production streams** — the single highest-leverage decision.
-
-- **Efficient Thumbnail Extraction, not N per-tile players** — On Android, 
-  `PreviewFrameEngine` is a single muted, video-only ExoPlayer extracting `_160p` 
-  frames (~65 KB each) into an LRU cache. This avoids decoder exhaustion. On iOS, 
-  we leverage `AVAssetImageGenerator` natively within Compose `UIKitView`s to 
-  achieve performant frame extraction without full player instantiation.
-
-- **Live vs VOD by playlist inspection** — `#EXT-X-ENDLIST` presence drives both
-  the LIVE badge and download eligibility. Truly-live events (no `ENDLIST`) get no
-  download affordance; bounded events download to disk.
-
-- **Background audio at the audio-only tier** — with muxed HLS, disabling the
-  video renderer stops decode but *not* download. Constraining track selection to
-  the ladder's `_aac` tier (~51 kbps vs ~1 Mbps) is real savings while the
-  `MediaSession` keeps audio going.
-
-- **PiP aspect ratio clamped for vertical video** — `PictureInPictureParams` uses
-  `videoSize`, clamped to the platform's 1:2.39–2.39:1 range so 9:16 content
-  isn't rejected.
-
-- **Downloads target a concrete rendition** — not the `data:` ladder — so cache
-  keys stay stable and stored content sidesteps chunklist rotation.
+The load-bearing design calls and the reasoning behind them live in [`plan.md`](./plan.md).
 
 ## TODO: deferred from the AGP 9 migration
 
@@ -173,18 +144,4 @@ binary-breaking changes fail CI. Dokka API docs are published to GitHub Pages on
 
 ## Configuration
 
-The login-gate password is injected via a gradle property (`icsEventPassword`),
-falling back to `SECRET` for dev/CI — it is not in source:
-```
-# gradle.properties or ~/.gradle/gradle.properties
-icsEventPassword=your-password
-```
-
-The debug demo menu can offer a portrait/vertical clip for exercising the
-vertical-video path (resize matrix, PiP clamping, orientation). No durable
-public vertical test stream exists, so the URL comes from an optional gradle
-property and the menu entry is hidden until it's set:
-```
-# gradle.properties, or -P at build time
-icsVerticalDemoUrl=https://host/portrait.mp4
-```
+Transcription API keys (for Deepgram and Soniox) are read from `secrets.properties` in the project root. See `secrets.properties.example` for details.
