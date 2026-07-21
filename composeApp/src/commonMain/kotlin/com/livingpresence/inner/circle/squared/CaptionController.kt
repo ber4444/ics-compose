@@ -8,7 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
-import androidx.media3.common.Player
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Color
 import com.livingpresence.inner.circle.squared.transcription.TranscriberStatus
 import com.livingpresence.inner.circle.squared.transcription.TranscriptionProvider
 import com.livingpresence.inner.circle.squared.transcription.TranscriptionSettings
@@ -44,12 +46,9 @@ internal class CaptionController(
 /**
  * Remembers a [CaptionController]. Starts streaming to the selected provider on
  * enable (and when the provider changes); stops on disable or when the screen leaves.
- *
- * [player] is currently unused (cloud ASR is driven by the PCM tap, not the player
- * clock) but kept in the signature for parity with the on-device path.
  */
 @Composable
-internal fun rememberCaptionController(@Suppress("UNUSED_PARAMETER") player: Player?): CaptionController {
+internal fun rememberCaptionController(): CaptionController {
     val router = remember { CaptionAudioRouter.get() }
     var enabled by remember { mutableStateOf(false) }
     val provider by TranscriptionSettings.provider.collectAsState()
@@ -75,5 +74,39 @@ internal fun rememberCaptionController(@Suppress("UNUSED_PARAMETER") player: Pla
             onToggle = { enabled = !enabled },
             onSelectProvider = { TranscriptionSettings.select(it) },
         )
+    }
+}
+
+@Composable
+internal fun CaptionToggleButton(controller: CaptionController) {
+    val status by controller.status.collectAsState()
+    val error by controller.error.collectAsState()
+    val label = when {
+        !controller.enabled -> "CC"
+        error != null -> "CC!"
+        status == TranscriberStatus.CONNECTING -> "CC…"
+        status == TranscriberStatus.ERROR -> "CC!"
+        else -> "CC●"
+    }
+    TextButton(onClick = controller.onToggle) {
+        Text(
+            text = label,
+            color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
+        )
+    }
+}
+
+/** Tap to cycle the live streaming provider (Deepgram ↔ Soniox). */
+@Composable
+internal fun CaptionProviderButton(controller: CaptionController) {
+    TextButton(onClick = {
+        val next = when (controller.provider) {
+            TranscriptionProvider.DEEPGRAM -> TranscriptionProvider.SONIOX
+            TranscriptionProvider.SONIOX -> TranscriptionProvider.ASSEMBLY_AI
+            TranscriptionProvider.ASSEMBLY_AI -> TranscriptionProvider.DEEPGRAM
+        }
+        controller.onSelectProvider(next)
+    }) {
+        Text(text = controller.provider.label, color = Color.White.copy(alpha = 0.85f))
     }
 }

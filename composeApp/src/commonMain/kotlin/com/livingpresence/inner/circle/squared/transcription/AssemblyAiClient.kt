@@ -23,7 +23,7 @@ import kotlinx.serialization.json.Json
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * AssemblyAI streaming ASR over websocket (`wss://api.assemblyai.com/v2/realtime/ws`).
+ * AssemblyAI streaming ASR over websocket (`wss://streaming.assemblyai.com/v3/ws`).
  * Raw 16 kHz mono s16le PCM is sent as binary frames.
  */
 class AssemblyAiClient(
@@ -49,8 +49,10 @@ class AssemblyAiClient(
         if (job != null) return
         val key = apiKey()
         if (key.isBlank()) {
-            _error.value = "Missing AssemblyAI API key"
+            val msg = "Missing AssemblyAI API key"
+            _error.value = msg
             _status.value = TranscriberStatus.ERROR
+            accumulator.setPartial(msg)
             return
         }
         _error.value = null
@@ -58,40 +60,64 @@ class AssemblyAiClient(
         val channel = Channel<ByteArray>(capacity = 128)
         pcm = channel
         
-        val url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=$sampleRate"
+        val url = "wss://streaming.assemblyai.com/v3/ws?sample_rate=$sampleRate&token=$key"
         
         job = scope.launch {
             try {
-                client.webSocket(urlString = url, request = { header("Authorization", key) }) {
+                client.webSocket(urlString = url) {
                     _status.value = TranscriberStatus.LISTENING
                     
                     val sender = launch {
                         try {
-                            for (chunk in channel) send(Frame.Binary(fin = true, data = chunk))
+                            for (chunk in channel) {
+                                if (chunk.isNotEmpty()) {
+                                    send(Frame.Binary(fin = true, data = chunk))
+                                }
+                            }
                         } catch (_: Throwable) { /* connection closing */ }
                     }
                     
                     try {
                         for (frame in incoming) {
                             if (frame is Frame.Text) handleMessage(frame.readText())
+                            else println("AssemblyAiClient non-text frame: $frame")
                         }
                     } finally {
+                        val reason = runCatching { closeReason.await() }.getOrNull()
+                        if (reason != null && reason.knownReason != io.ktor.websocket.CloseReason.Codes.NORMAL) {
+                            val msg = "AssemblyAI Closed: $reason"
+                            _error.value = msg
+                            _status.value = TranscriberStatus.ERROR
+                            accumulator.setPartial(msg)
+                        }
                         sender.cancel()
                         runCatching { send(Frame.Text("{\"terminate_session\": true}")) }
                     }
                 }
                 if (_status.value != TranscriberStatus.ERROR) _status.value = TranscriberStatus.IDLE
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                _error.value = e.message ?: "AssemblyAI connection failed"
-                _status.value = TranscriberStatus.ERROR
+            } catch (e: Exception) {
+                if (e !is CancellationException) {
+                    println("AssemblyAiClient Exception: ${e.message}")
+                    e.printStackTrace()
+                    val msg = e.message ?: "AssemblyAI connection failed"
+                    _error.value = msg
+                    _status.value = TranscriberStatus.ERROR
+                    accumulator.setPartial("AssemblyAI EXCEPTION: $msg")
+                }
             }
         }
     }
 
+    private var audioBuffer = ByteArray(0)
+
     override fun feedPcm(pcm16: ByteArray) {
-        pcm?.trySend(pcm16)
+        audioBuffer += pcm16
+        // Send in chunks of 3200 bytes (100ms of 16kHz 16-bit mono PCM)
+        while (audioBuffer.size >= 3200) {
+            val chunk = audioBuffer.copyOfRange(0, 3200)
+            audioBuffer = audioBuffer.copyOfRange(3200, audioBuffer.size)
+            pcm?.trySend(chunk)
+        }
     }
 
     override fun stop() {
@@ -104,20 +130,22 @@ class AssemblyAiClient(
     }
 
     private fun handleMessage(text: String) {
-        val msg = runCatching { json.decodeFromString<AssemblyAiMessage>(text) }.getOrNull() ?: return
+        val msg = runCatching { json.decodeFromString<AssemblyAiMessage>(text) }.getOrNull()
+        if (msg == null) {
+            val err = "AssemblyAI decode fail: $text"
+            _error.value = err
+            _status.value = TranscriberStatus.ERROR
+            accumulator.setPartial(err)
+            return
+        }
         
-        when (msg.messageType) {
-            "PartialTranscript" -> {
-                if (!msg.text.isNullOrBlank()) {
-                    accumulator.setPartial(msg.text)
+        when (msg.type) {
+            "Turn" -> {
+                if (!msg.transcript.isNullOrBlank()) {
+                    if (msg.endOfTurn) accumulator.appendFinal(msg.transcript) else accumulator.setPartial(msg.transcript)
                 }
             }
-            "FinalTranscript" -> {
-                if (!msg.text.isNullOrBlank()) {
-                    accumulator.appendFinal(msg.text)
-                }
-            }
-            "SessionInformation", "SessionBegins" -> {
+            "Begin" -> {
                 // Session started successfully
             }
             else -> {
@@ -125,6 +153,7 @@ class AssemblyAiClient(
                 if (msg.error != null) {
                     _error.value = msg.error
                     _status.value = TranscriberStatus.ERROR
+                    accumulator.setPartial("AssemblyAI ERROR MSG: ${msg.error}")
                 }
             }
         }
@@ -132,8 +161,9 @@ class AssemblyAiClient(
 
     @Serializable
     private data class AssemblyAiMessage(
-        @SerialName("message_type") val messageType: String? = null,
-        val text: String? = null,
+        val type: String? = null,
+        val transcript: String? = null,
+        @SerialName("end_of_turn") val endOfTurn: Boolean = false,
         val error: String? = null
     )
 }

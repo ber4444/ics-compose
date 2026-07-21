@@ -20,6 +20,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -71,14 +73,25 @@ class DeepgramClient(
                     _status.value = TranscriberStatus.LISTENING
                     val sender = launch {
                         try {
-                            for (chunk in channel) send(Frame.Binary(fin = true, data = chunk))
+                            for (chunk in channel) {
+                                if (chunk.isNotEmpty()) {
+                                    send(Frame.Binary(fin = true, data = chunk))
+                                }
+                            }
                         } catch (_: Throwable) { /* connection closing */ }
+                    }
+                    val keepAlive = launch {
+                        while (isActive) {
+                            delay(3000)
+                            runCatching { send(Frame.Text("{\"type\":\"KeepAlive\"}")) }
+                        }
                     }
                     try {
                         for (frame in incoming) {
                             if (frame is Frame.Text) handleMessage(frame.readText())
                         }
                     } finally {
+                        keepAlive.cancel()
                         sender.cancel()
                         runCatching { send(Frame.Text("{\"type\":\"CloseStream\"}")) }
                     }
@@ -87,6 +100,8 @@ class DeepgramClient(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
+                println("DeepgramClient connection error: ${e.message}")
+                e.printStackTrace()
                 _error.value = e.message ?: "Deepgram connection failed"
                 _status.value = TranscriberStatus.ERROR
             }

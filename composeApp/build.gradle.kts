@@ -169,7 +169,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.ktor.client.android)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
             implementation(libs.media3.exoplayer.workmanager)

@@ -10,17 +10,17 @@ import kotlin.math.roundToInt
  * Web audio bridge for live captions.
  * Resamples float buffers to 16 kHz mono s16le for the LiveTranscriber.
  */
-internal class CaptionAudioRouter private constructor() {
+internal actual class CaptionAudioRouter private actual constructor() {
 
     private val live = LiveTranscriber()
 
-    val captions: StateFlow<List<CaptionCue>> = live.captions
-    val status: StateFlow<TranscriberStatus> = live.status
-    val error: StateFlow<String?> = live.error
+    actual val captions: StateFlow<List<CaptionCue>> = live.captions
+    actual val status: StateFlow<TranscriberStatus> = live.status
+    actual val error: StateFlow<String?> = live.error
 
-    fun enable(provider: TranscriptionProvider) = live.enable(provider)
-    fun switch(provider: TranscriptionProvider) = live.enable(provider)
-    fun disable() = live.disable()
+    actual fun enable(provider: TranscriptionProvider) = live.enable(provider)
+    actual fun switch(provider: TranscriptionProvider) = live.enable(provider)
+    actual fun disable() = live.disable()
 
     fun onPcm(pcmData: FloatArray, numFrames: Int, channels: Int, sampleRate: Int) {
         if (numFrames <= 0 || channels <= 0) return
@@ -69,10 +69,10 @@ internal class CaptionAudioRouter private constructor() {
         return result
     }
 
-    companion object {
+    actual companion object {
         private const val TARGET_SAMPLE_RATE_HZ = 16000
         private val _instance by lazy { CaptionAudioRouter() }
 
-        fun get(): CaptionAudioRouter = _instance
+        actual fun get(): CaptionAudioRouter = _instance
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.dp
 import com.livingpresence.mediakit.LadderResolver
 import com.livingpresence.mediakit.MediaKitConfig
 import io.ktor.client.HttpClient
@@ -131,6 +132,25 @@ function getFloat32ArrayElement(jsFloat32Array, index) {
 """)
 internal external fun getFloat32ArrayElement(jsArray: kotlin.js.JsAny, index: Int): Float
 
+@JsFun("function getVideoHeight(video) { return video.videoHeight || 0; }")
+internal external fun getVideoHeight(video: kotlin.js.JsAny): Int
+
+@JsFun("""
+function getBufferedAfter(video) {
+    if (!video.buffered || video.buffered.length === 0) return 0.0;
+    var currentTime = video.currentTime;
+    for (var i = 0; i < video.buffered.length; i++) {
+        var start = video.buffered.start(i);
+        var end = video.buffered.end(i);
+        if (currentTime >= start && currentTime <= end) {
+            return end - currentTime;
+        }
+    }
+    return 0.0;
+}
+""")
+internal external fun getBufferedAfter(video: kotlin.js.JsAny): Double
+
 private fun parseEventNumber(url: String): Int? {
     val regex = "event(\\d+)".toRegex()
     return regex.find(url)?.groupValues?.get(1)?.toIntOrNull()
@@ -150,6 +170,10 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
     var hlsInstance by remember { mutableStateOf<kotlin.js.JsAny?>(null) }
     var showQualityMenu by remember { mutableStateOf(false) }
 
+    var renditions by remember { mutableStateOf<List<com.livingpresence.mediakit.ProbedRendition>?>(null) }
+    var showStats by remember { mutableStateOf(false) }
+    val captionController = rememberCaptionController()
+
     // Scrub Preview State
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubFraction by remember { mutableStateOf(0f) }
@@ -162,9 +186,13 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
         
         DisposableEffect(Unit) {
-            val composeCanvas = document.getElementById("ComposeTarget") as? org.w3c.dom.HTMLElement
+            val composeCanvas = document.getElementsByTagName("canvas").item(0) as? org.w3c.dom.HTMLElement
             if (composeCanvas != null) {
                 composeCanvas.style.apply { setProperty("z-index", "1") }
+            }
+            
+            document.body?.style?.apply {
+                setProperty("background", "black")
             }
             
             val video = document.createElement("video") as HTMLVideoElement
@@ -174,7 +202,7 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
                 setProperty("top", "0px")
                 setProperty("width", "100%")
                 setProperty("height", "100%")
-                setProperty("z-index", "-1")
+                setProperty("z-index", "0")
                 setProperty("background", "black")
                 setProperty("object-fit", "contain")
             }
@@ -206,6 +234,7 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
             val job = scope.launch {
                 if (eventNumber != null) {
                     val ladder = ladderResolver.resolve(eventNumber)
+                    renditions = ladder?.renditions
                     if (ladder != null) {
                         val blobUrl = createBlobUrl(ladder.masterPlaylistText, "application/vnd.apple.mpegurl")
                         hlsJs = attachHlsWithAbr(video, blobUrl)
@@ -232,14 +261,14 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                IconButton(onClick = onClose) {
+                TextButton(onClick = onClose) {
                     Text("←", color = Color.White)
                 }
             }
             
             Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.5f)).padding(8.dp)) {
                 CaptionOverlay(
-                    captions = CaptionAudioRouter.get().captions,
+                    captions = captionController.captions,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
@@ -310,10 +339,10 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
+                        TextButton(onClick = {
                             videoElement?.let { if (isPlaying) pauseVideo(it) else playVideo(it) }
                         }) {
-                            Text(if (isPlaying) "⏸" else "▶", color = Color.White)
+                            Text(if (isPlaying) "Pause" else "Play", color = Color.White)
                         }
                         Text(
                             text = "${formatDurationWeb(currentTime)} / ${formatDurationWeb(duration)}",
@@ -322,44 +351,57 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
                         )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box {
-                            IconButton(onClick = { showQualityMenu = true }) {
-                                Text("⚙", color = Color.White)
+                        QualityMenu(
+                            renditions = renditions,
+                            onSetAuto = { hlsInstance?.let { setHlsLevel(it, -1) } },
+                            onPinToRendition = { rendition ->
+                                val index = renditions?.filter { !it.isAudioOnly }?.indexOf(rendition) ?: -1
+                                if (index >= 0) hlsInstance?.let { setHlsLevel(it, index) }
+                            },
+                            onDisableVideo = {
+                                val audioIndex = renditions?.indexOfFirst { it.isAudioOnly } ?: -1
+                                if (audioIndex >= 0) hlsInstance?.let { setHlsLevel(it, audioIndex) }
                             }
-                            DropdownMenu(
-                                expanded = showQualityMenu,
-                                onDismissRequest = { showQualityMenu = false }
-                            ) {
-                                // Since we can't easily parse JSON from Kotlin Wasm without kotlinx-serialization,
-                                // we'll just hardcode the typical options for this demo or parse simply.
-                                // For simplicity, we just offer Auto, 720p, 360p, 160p which maps to levels 2, 1, 0 if 3 exist.
-                                // We can use index -1 for Auto.
-                                DropdownMenuItem(
-                                    text = { Text("Auto") },
-                                    onClick = { hlsInstance?.let { setHlsLevel(it, -1) }; showQualityMenu = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("720p") },
-                                    onClick = { hlsInstance?.let { setHlsLevel(it, 2) }; showQualityMenu = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("360p") },
-                                    onClick = { hlsInstance?.let { setHlsLevel(it, 1) }; showQualityMenu = false }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("160p") },
-                                    onClick = { hlsInstance?.let { setHlsLevel(it, 0) }; showQualityMenu = false }
-                                )
-                            }
+                        )
+                        TextButton(onClick = { showStats = !showStats }) {
+                            Text("Stats", color = Color.White)
                         }
-                        IconButton(onClick = {
+                        if (captionController.enabled) {
+                            CaptionProviderButton(controller = captionController)
+                        }
+                        CaptionToggleButton(controller = captionController)
+
+                        TextButton(onClick = {
                             videoElement?.let { toggleFullscreenWeb(it) }
                         }) {
-                            Text("⛶", color = Color.White)
+                            Text("Fullscreen", color = Color.White)
                         }
                     }
                 }
             }
+        }
+
+        if (showStats) {
+            // Recompute stats continuously when shown
+            var tick by remember { mutableStateOf(0) }
+            LaunchedEffect(isPlaying, showStats) {
+                while(true) {
+                    kotlinx.coroutines.delay(250)
+                    tick++
+                }
+            }
+            
+            val currentHeight = videoElement?.let { getVideoHeight(it) }?.takeIf { it > 0 }
+            val bufferedAfterMs = videoElement?.let { (getBufferedAfter(it) * 1000).toLong() } ?: 0L
+            
+            StatsOverlay(
+                currentHeight = tick.let { currentHeight },
+                bufferedAfterMs = tick.let { bufferedAfterMs },
+                renditions = renditions,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 56.dp, start = 8.dp),
+            )
         }
     }
 }

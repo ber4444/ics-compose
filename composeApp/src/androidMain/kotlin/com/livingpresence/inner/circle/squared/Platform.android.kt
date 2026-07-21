@@ -173,7 +173,7 @@ private fun ExoPlayerScreen(
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
     // taps PCM; captions render via CaptionOverlay below.
-    val captionController = rememberCaptionController(player)
+    val captionController = rememberCaptionController()
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
     var sliderFraction by remember(player) { mutableStateOf(0f) }
@@ -360,7 +360,30 @@ private fun ExoPlayerScreen(
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            QualityMenu(player = player, renditions = renditions)
+                            QualityMenu(
+                                renditions = renditions,
+                                onSetAuto = {
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .clearVideoSizeConstraints()
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                        .build()
+                                },
+                                onPinToRendition = { rendition ->
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .setMinVideoSize(rendition.width, rendition.height)
+                                        .setMaxVideoSize(rendition.width, rendition.height)
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                        .build()
+                                },
+                                onDisableVideo = {
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
+                                        .build()
+                                }
+                            )
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
@@ -439,8 +462,8 @@ private fun ExoPlayerScreen(
                 // Debug stats overlay (toggle).
                 if (showStats) {
                     StatsOverlay(
-                        player = player,
-                        state = state,
+                        currentHeight = state.videoSize.height.takeIf { it > 0 },
+                        bufferedAfterMs = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0L),
                         renditions = renditions,
                         modifier = Modifier
                             .align(Alignment.TopStart)
@@ -643,38 +666,6 @@ private fun PlayerControlPanel(
     }
 }
 
-@Composable
-private fun CaptionToggleButton(controller: CaptionController) {
-    val status by controller.status.collectAsState()
-    val error by controller.error.collectAsState()
-    val label = when {
-        !controller.enabled -> "CC"
-        error != null -> "CC!"
-        status == com.livingpresence.inner.circle.squared.transcription.TranscriberStatus.CONNECTING -> "CC…"
-        status == com.livingpresence.inner.circle.squared.transcription.TranscriberStatus.ERROR -> "CC!"
-        else -> "CC●"
-    }
-    TextButton(onClick = controller.onToggle) {
-        Text(
-            text = label,
-            color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
-        )
-    }
-}
-
-/** Tap to cycle the live streaming provider (Deepgram ↔ Soniox). */
-@Composable
-private fun CaptionProviderButton(controller: CaptionController) {
-    TextButton(onClick = {
-        val next = when (controller.provider) {
-            TranscriptionProvider.DEEPGRAM -> TranscriptionProvider.SONIOX
-            TranscriptionProvider.SONIOX -> TranscriptionProvider.DEEPGRAM
-        }
-        controller.onSelectProvider(next)
-    }) {
-        Text(text = controller.provider.label, color = Color.White.copy(alpha = 0.85f))
-    }
-}
 
 
 

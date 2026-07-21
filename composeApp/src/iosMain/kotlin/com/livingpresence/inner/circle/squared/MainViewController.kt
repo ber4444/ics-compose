@@ -16,5 +16,6 @@ fun mainViewController() = ComposeUIViewController {
     val info = NSBundle.mainBundle.infoDictionary
     TranscriptionSecrets.deepgramApiKey = info?.get("DEEPGRAM_API_KEY") as? String ?: ""
     TranscriptionSecrets.sonioxApiKey = info?.get("SONIOX_API_KEY") as? String ?: ""
+    TranscriptionSecrets.assemblyAiApiKey = info?.get("ASSEMBLYAI_API_KEY") as? String ?: ""
     App()
 }

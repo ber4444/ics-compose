@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
         // Empty when unset — the caption clients then surface a "missing key" error.
         TranscriptionSecrets.deepgramApiKey = BuildConfig.DEEPGRAM_API_KEY
         TranscriptionSecrets.sonioxApiKey = BuildConfig.SONIOX_API_KEY
+        TranscriptionSecrets.assemblyAiApiKey = BuildConfig.ASSEMBLYAI_API_KEY
 
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)

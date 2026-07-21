@@ -22,23 +22,26 @@ internal interface PcmTapSink {
  * All provider selection / caption plumbing lives in the shared [LiveTranscriber];
  * this class is only the Android-specific capture + resample.
  */
-internal class CaptionAudioRouter private constructor() : PcmTapSink {
+internal actual class CaptionAudioRouter private actual constructor() : PcmTapSink {
 
     private val live = LiveTranscriber()
 
-    val captions: StateFlow<List<CaptionCue>> = live.captions
-    val status: StateFlow<TranscriberStatus> = live.status
-    val error: StateFlow<String?> = live.error
+    actual val captions: StateFlow<List<CaptionCue>> = live.captions
+    actual val status: StateFlow<TranscriberStatus> = live.status
+    actual val error: StateFlow<String?> = live.error
 
-    fun enable(provider: TranscriptionProvider) = live.enable(provider)
-    fun switch(provider: TranscriptionProvider) = live.enable(provider)
-    fun disable() = live.disable()
+    actual fun enable(provider: TranscriptionProvider) = live.enable(provider)
+    actual fun switch(provider: TranscriptionProvider) = live.enable(provider)
+    actual fun disable() = live.disable()
 
     override fun onPcm(buffer: ByteBuffer, sampleRate: Int, channels: Int, encoding: Int) {
         val copy = ByteArray(buffer.remaining())
         buffer.duplicate().get(copy)
         val pcm16 = resampleTo16kMonoS16(copy, sampleRate, channels, encoding)
-        if (pcm16.isNotEmpty()) live.feedPcm(pcm16)
+        if (pcm16.isNotEmpty()) {
+            android.util.Log.d("CaptionAudioRouter", "Sending ${pcm16.size} bytes of 16kHz PCM to live transcriber (inRate=$sampleRate, channels=$channels)")
+            live.feedPcm(pcm16)
+        }
     }
 
     /**
@@ -88,15 +91,10 @@ internal class CaptionAudioRouter private constructor() : PcmTapSink {
         return result
     }
 
-    companion object {
+    actual companion object {
         private const val TARGET_SAMPLE_RATE_HZ = 16000
+        private val _instance by lazy { CaptionAudioRouter() }
 
-        @Volatile
-        private var instance: CaptionAudioRouter? = null
-
-        fun get(): CaptionAudioRouter =
-            instance ?: synchronized(this) {
-                instance ?: CaptionAudioRouter().also { instance = it }
-            }
+        actual fun get(): CaptionAudioRouter = _instance
     }
 }

@@ -4,6 +4,7 @@ import com.livingpresence.inner.circle.squared.CaptionCue
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.header
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
@@ -61,8 +62,10 @@ class SonioxClient(
         if (job != null) return
         val key = apiKey()
         if (key.isBlank()) {
-            _error.value = "Missing Soniox API key"
+            val msg = "Missing Soniox API key"
+            _error.value = msg
             _status.value = TranscriberStatus.ERROR
+            accumulator.setPartial(msg)
             return
         }
         _error.value = null
@@ -72,7 +75,10 @@ class SonioxClient(
         pcm = channel
         job = scope.launch {
             try {
-                client.webSocket(urlString = "wss://stt-rt.soniox.com/transcribe-websocket") {
+                client.webSocket(
+                    urlString = "wss://stt-rt.soniox.com/transcribe-websocket",
+                    request = { header("Authorization", "Bearer $key") }
+                ) {
                     // 1) config handshake, 2) then stream audio.
                     val config = SonioxConfig(
                         apiKey = key,
@@ -91,17 +97,29 @@ class SonioxClient(
                     try {
                         for (frame in incoming) {
                             if (frame is Frame.Text) handleMessage(frame.readText())
+                            else println("SonioxClient non-text frame: $frame")
                         }
                     } finally {
+                        val reason = runCatching { closeReason.await() }.getOrNull()
+                        if (reason != null && reason.knownReason != io.ktor.websocket.CloseReason.Codes.NORMAL) {
+                            val msg = "Soniox Closed: $reason"
+                            _error.value = msg
+                            _status.value = TranscriberStatus.ERROR
+                            accumulator.setPartial(msg)
+                        }
                         sender.cancel()
                     }
                 }
                 if (_status.value != TranscriberStatus.ERROR) _status.value = TranscriberStatus.IDLE
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                _error.value = e.message ?: "Soniox connection failed"
-                _status.value = TranscriberStatus.ERROR
+            } catch (e: Exception) {
+                if (e !is CancellationException) {
+                    println("SonioxClient Exception: ${e.message}")
+                    e.printStackTrace()
+                    val msg = e.message ?: "Soniox connection failed"
+                    _error.value = msg
+                    _status.value = TranscriberStatus.ERROR
+                    accumulator.setPartial("Soniox EXCEPTION: $msg")
+                }
             }
         }
     }
@@ -121,10 +139,18 @@ class SonioxClient(
     }
 
     private fun handleMessage(text: String) {
-        val resp = runCatching { json.decodeFromString<SonioxResponse>(text) }.getOrNull() ?: return
+        val resp = runCatching { json.decodeFromString<SonioxResponse>(text) }.getOrNull()
+        if (resp == null) {
+            val err = "Soniox decode fail: $text"
+            _error.value = err
+            _status.value = TranscriberStatus.ERROR
+            accumulator.setPartial(err)
+            return
+        }
         if (resp.errorMessage != null) {
             _error.value = resp.errorMessage
             _status.value = TranscriberStatus.ERROR
+            accumulator.setPartial("Soniox ERROR MSG: ${resp.errorMessage}")
             return
         }
         val partial = StringBuilder()

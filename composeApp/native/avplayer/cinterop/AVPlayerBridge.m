@@ -48,6 +48,23 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames, MT
     }
 }
 
+@interface AVPlayerBridgeView : UIView
+@property (nonatomic, strong) AVPlayer *player;
+@end
+
+@implementation AVPlayerBridgeView
++ (Class)layerClass {
+    return [AVPlayerLayer class];
+}
+- (AVPlayer *)player {
+    return [(AVPlayerLayer *)self.layer player];
+}
+- (void)setPlayer:(AVPlayer *)player {
+    [(AVPlayerLayer *)self.layer setPlayer:player];
+    [(AVPlayerLayer *)self.layer setVideoGravity:AVLayerVideoGravityResizeAspect];
+}
+@end
+
 @implementation AVPlayerBridge
 
 + (BOOL)configurePlaybackSession {
@@ -77,6 +94,7 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames, MT
 - (void)play { [self.player play]; }
 - (void)pause { [self.player pause]; }
 - (float)rate { return [self.player rate]; }
+- (void)setMuted:(BOOL)muted { [self.player setMuted:muted]; }
 
 - (CMTime)duration {
     AVPlayerItem *item = self.player.currentItem;
@@ -101,17 +119,10 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames, MT
     [self.player replaceCurrentItemWithPlayerItem:item];
 }
 
-- (void)layoutInSuperview:(UIView *)superview {
-    if (self.playerLayer.superlayer == nil) {
-        [superview.layer addSublayer:self.playerLayer];
-    }
-    self.playerLayer.frame = superview.bounds;
-    // CMP's UIKitView renders the native UIView *above* the Compose layer tree,
-    // which would put the video on top of the control overlays (slider, buttons).
-    // Lowering the host view's layer zPosition to a negative value places the
-    // entire native view (player sublayer included) below the Compose surface, so
-    // the Compose-drawn controls render on top and stay tappable.
-    superview.layer.zPosition = -1.0f;
+- (UIView *)createPlayerView {
+    AVPlayerBridgeView *view = [[AVPlayerBridgeView alloc] initWithFrame:CGRectZero];
+    view.player = self.player;
+    return view;
 }
 
 - (void)installAudioTapWithCallback:(AudioTapCallback)callback {
@@ -149,6 +160,46 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames, MT
     item.audioMix = audioMix;
 
     CFRelease(tap);
+}
+
+// Quality / Rendition controls
+
+- (double)preferredPeakBitRate {
+    AVPlayerItem *item = self.player.currentItem;
+    if (!item) return 0.0;
+    return item.preferredPeakBitRate;
+}
+
+- (void)setPreferredPeakBitRate:(double)preferredPeakBitRate {
+    AVPlayerItem *item = self.player.currentItem;
+    if (item) {
+        item.preferredPeakBitRate = preferredPeakBitRate;
+    }
+}
+
+- (void)setVideoEnabled:(BOOL)enabled {
+    AVPlayerItem *item = self.player.currentItem;
+    if (!item) return;
+    for (AVPlayerItemTrack *track in item.tracks) {
+        if ([track.assetTrack.mediaType isEqualToString:AVMediaTypeVideo]) {
+            track.enabled = enabled;
+        }
+    }
+}
+
+// Metrics
+
+- (CGSize)videoSize {
+    AVPlayerItem *item = self.player.currentItem;
+    if (!item) return CGSizeZero;
+    return item.presentationSize;
+}
+
+- (CMTime)bufferedDuration {
+    AVPlayerItem *item = self.player.currentItem;
+    if (!item || item.loadedTimeRanges.count == 0) return kCMTimeZero;
+    CMTimeRange timeRange = [item.loadedTimeRanges.firstObject CMTimeRangeValue];
+    return CMTimeAdd(timeRange.start, timeRange.duration);
 }
 
 @end

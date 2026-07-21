@@ -12,8 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.media3.common.C
-import androidx.media3.common.Player
 import com.livingpresence.mediakit.ProbedRendition
 
 /**
@@ -24,8 +22,10 @@ import com.livingpresence.mediakit.ProbedRendition
  */
 @Composable
 internal fun QualityMenu(
-    player: Player,
     renditions: List<ProbedRendition>?,
+    onSetAuto: () -> Unit,
+    onPinToRendition: (ProbedRendition) -> Unit,
+    onDisableVideo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -38,7 +38,7 @@ internal fun QualityMenu(
             DropdownMenuItem(
                 text = { Text("Auto") },
                 onClick = {
-                    setAuto(player)
+                    onSetAuto()
                     expanded = false
                 },
             )
@@ -47,7 +47,7 @@ internal fun QualityMenu(
                     DropdownMenuItem(
                         text = { Text("${rendition.height}p") },
                         onClick = {
-                            pinToHeight(player, rendition)
+                            onPinToRendition(rendition)
                             expanded = false
                         },
                     )
@@ -56,7 +56,7 @@ internal fun QualityMenu(
                     DropdownMenuItem(
                         text = { Text("Audio only") },
                         onClick = {
-                            disableVideo(player)
+                            onDisableVideo()
                             expanded = false
                         },
                     )
@@ -64,30 +64,4 @@ internal fun QualityMenu(
             }
         }
     }
-}
-
-private fun setAuto(player: Player) {
-    // Auto = let AdaptiveTrackSelection run: re-enable video and clear any
-    // resolution pin a prior manual selection applied.
-    player.trackSelectionParameters = player.trackSelectionParameters
-        .buildUpon()
-        .clearVideoSizeConstraints()
-        .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-        .build()
-}
-
-private fun pinToHeight(player: Player, rendition: ProbedRendition) {
-    player.trackSelectionParameters = player.trackSelectionParameters
-        .buildUpon()
-        .setMinVideoSize(rendition.width, rendition.height)
-        .setMaxVideoSize(rendition.width, rendition.height)
-        .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-        .build()
-}
-
-private fun disableVideo(player: Player) {
-    player.trackSelectionParameters = player.trackSelectionParameters
-        .buildUpon()
-        .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
-        .build()
 }
