@@ -17,9 +17,11 @@ package com.livingpresence.inner.circle.squared.transcription
 object TranscriptionSecrets {
     var deepgramApiKey: String = ""
     var sonioxApiKey: String = ""
+    var assemblyAiApiKey: String = ""
 
     fun keyFor(provider: TranscriptionProvider): String = when (provider) {
         TranscriptionProvider.DEEPGRAM -> deepgramApiKey
         TranscriptionProvider.SONIOX -> sonioxApiKey
+        TranscriptionProvider.ASSEMBLY_AI -> assemblyAiApiKey
     }
 }

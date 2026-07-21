@@ -76,5 +76,6 @@ class LiveTranscriber {
     private fun createClient(provider: TranscriptionProvider): StreamingTranscriber = when (provider) {
         TranscriptionProvider.DEEPGRAM -> DeepgramClient(apiKey = { TranscriptionSecrets.deepgramApiKey })
         TranscriptionProvider.SONIOX -> SonioxClient(apiKey = { TranscriptionSecrets.sonioxApiKey })
+        TranscriptionProvider.ASSEMBLY_AI -> AssemblyAiClient(apiKey = { TranscriptionSecrets.assemblyAiApiKey })
     }
 }
