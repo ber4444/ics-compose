@@ -38,6 +38,20 @@ build/
 */build/
 local.properties
 
+# API keys for transcription providers (Deepgram/Soniox) — never commit.
+# Copy secrets.properties.example → secrets.properties and fill in.
+secrets.properties
+
+# Local scratch dumps from `gh api` / PR tooling — never commit.
+/pr.txt
+/pr.json
+/pr_body.md
+/pr_diff.txt
+/pr_*.json
+/comments.json
+/reviews.json
+/issues_comments.json
+
 # Android Studio
 captures/
 .externalNativeBuild

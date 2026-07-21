@@ -8,8 +8,8 @@ import io.ktor.client.HttpClient
 expect fun createHttpClient(): HttpClient
 
 /**
- * The login-gate password, sourced per-platform (Android: BuildConfig from a
- * gradle property; wasmJs: a default) so it isn't in common source.
+ * The HTTP client engine and offline-download manager are provided via Koin DI,
+ * not the platform object.
  */
 
 @Composable

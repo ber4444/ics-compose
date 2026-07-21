@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.dokka)
 }
 
@@ -161,12 +162,14 @@ kotlin {
             implementation(libs.navigation.compose)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.websockets)
+            implementation(libs.kotlinx.serialization.json)
             implementation(project(":mediakit"))
         }
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.ktor.client.android)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
             implementation(libs.media3.exoplayer.workmanager)
@@ -175,7 +178,6 @@ kotlin {
             implementation(libs.media3.ui.compose)
             implementation(libs.media3.ui.compose.material3)
             implementation(libs.androidx.work.runtime.ktx)
-            implementation(libs.whisper.jni.lib)
             implementation(libs.splash.screen.support)
         }
         wasmJsMain.dependencies {

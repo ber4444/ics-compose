@@ -3,6 +3,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+typedef void (^AudioTapCallback)(const float *pcmData, int numFrames, int numChannels, int sampleRate);
+
 /**
  * Thin Objective-C bridge over AVPlayer and AVPlayerLayer.
  *
@@ -32,6 +34,7 @@
 - (void)play;
 - (void)pause;
 - (float)rate;
+- (void)setMuted:(BOOL)muted;
 
 // Time / seeking (CMTime values)
 - (CMTime)duration;
@@ -46,9 +49,19 @@
 // Item lifecycle
 - (void)replaceCurrentItemWithItem:(AVPlayerItem *)item;
 
-// Resizes the player layer to the given UIView's bounds, and lowers that view's
-// layer zPosition so it renders below the Compose surface (controls on top).
-// Call from layout.
-- (void)layoutInSuperview:(UIView *)superview;
+// Creates a UIView whose backing layer is an AVPlayerLayer linked to this player.
+// It automatically resizes the player layer to match its bounds.
+- (UIView *)createPlayerView;
+
+// Intercepts audio PCM data
+- (void)installAudioTapWithCallback:(AudioTapCallback)callback;
+
+// Quality / Rendition controls
+@property (nonatomic, assign) double preferredPeakBitRate;
+- (void)setVideoEnabled:(BOOL)enabled;
+
+// Metrics
+- (CGSize)videoSize;
+- (CMTime)bufferedDuration;
 
 @end

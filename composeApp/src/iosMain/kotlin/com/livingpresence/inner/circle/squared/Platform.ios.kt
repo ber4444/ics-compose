@@ -19,7 +19,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +43,9 @@ import cnames.supported.AVPlayerBridge
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
 import kotlinx.cinterop.CValue
+import platform.AVFoundation.AVAssetImageGenerator
 import platform.AVFoundation.AVPlayerLayer
+import platform.AVFoundation.AVURLAsset
 import platform.AVKit.AVPictureInPictureController
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeGetSeconds
@@ -102,8 +106,23 @@ actual fun PlatformPlayerScreen(
     var scrubFraction by remember(url) { mutableStateOf(0f) }
     var isScrubbing by remember(url) { mutableStateOf(false) }
 
+    val captionController = rememberCaptionController()
+    var showStats by remember(url) { mutableStateOf(false) }
+    var renditions by remember(url) { mutableStateOf<List<com.livingpresence.mediakit.ProbedRendition>?>(null) }
+
+    LaunchedEffect(url) {
+        val config = com.livingpresence.mediakit.MediaKitConfig.Default
+        val eventNumber = Regex("events/(\\d+)/").find(url)?.groupValues?.get(1)?.toIntOrNull()
+        if (eventNumber != null) {
+            renditions = com.livingpresence.mediakit.MediaKit.probeLadder(config, eventNumber)
+        }
+    }
+
     DisposableEffect(url) {
         bridge.play()
+        bridge.installAudioTapWithCallback { pcmData, numFrames, numChannels, sampleRate ->
+            CaptionAudioRouter.get().onPcm(pcmData, numFrames, numChannels, sampleRate)
+        }
 
         // ~4 Hz position + status pump. `queue = null` → main run loop, safe to
         // touch Compose state directly from the block.
@@ -143,8 +162,7 @@ actual fun PlatformPlayerScreen(
             // UIKitView places the video above the control overlays (the known
             // z-order sharp edge), making them untappable.
             UIKitView(
-                factory = { UIView() },
-                update = { view -> bridge.layoutInSuperview(view) },
+                factory = { bridge.createPlayerView()!! },
                 modifier = Modifier.fillMaxSize(),
                 onRelease = { bridge.replaceCurrentItemWithItem(null) },
             )
@@ -174,7 +192,13 @@ actual fun PlatformPlayerScreen(
                     .fillMaxWidth()
                     .background(Color.Black.copy(alpha = 0.55f))
                     .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                CaptionOverlay(
+                    captions = captionController.captions,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 if (durationMs > 0L) {
                     val fraction = if (isScrubbing) {
                         scrubFraction
@@ -199,30 +223,70 @@ actual fun PlatformPlayerScreen(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = formatPlaybackTime(positionMs),
                         color = Color.White,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    TextButton(onClick = { if (isPlaying) bridge.pause() else bridge.play() }) {
+                        Text(if (isPlaying) "Pause" else "Play", color = Color.White)
+                    }
                     Text(
                         text = if (durationMs > 0L) formatPlaybackTime(durationMs) else "Live",
                         color = Color.White,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
+                    QualityMenu(
+                        renditions = renditions,
+                        onSetAuto = {
+                            bridge.setPreferredPeakBitRate(0.0) // 0 means no limit -> auto
+                            bridge.setVideoEnabled(true)
+                        },
+                        onPinToRendition = { rendition ->
+                            bridge.setPreferredPeakBitRate(rendition.bandwidthBitsPerSecond.toDouble())
+                            bridge.setVideoEnabled(true)
+                        },
+                        onDisableVideo = {
+                            bridge.setVideoEnabled(false)
+                        }
+                    )
+                    TextButton(onClick = { showStats = !showStats }) {
+                        Text("Stats", color = Color.White)
+                    }
+                    if (captionController.enabled) {
+                        CaptionProviderButton(controller = captionController)
+                    }
+                    CaptionToggleButton(controller = captionController)
                 }
             }
         }
 
-        // Top bar: PiP (when supported).
+        if (showStats) {
+            StatsOverlay(
+                currentHeight = bridge.videoSize().useContents { height.toInt() }.takeIf { it > 0 },
+                bufferedAfterMs = (CMTimeGetSeconds(bridge.bufferedDuration()) * 1000.0).roundToLong() - positionMs,
+                renditions = renditions,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 56.dp, start = 8.dp),
+            )
+        }
+
+        // Top bar: Close & PiP (when supported).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.55f))
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            TextButton(onClick = onClose) { 
+                Text("Close", color = Color.White) 
+            }
             if (pipController != null) {
                 TextButton(onClick = {
                     if (pipController.isPictureInPictureActive()) {
@@ -283,47 +347,28 @@ actual fun LiveEventThumbnail(
     modifier: Modifier,
 ) {
     val config = com.livingpresence.mediakit.MediaKitConfig.Default
-    var image by remember(eventNumber) { mutableStateOf<CGImageRef?>(null) }
+    val url = config.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
     
-    LaunchedEffect(eventNumber) {
-        withContext(Dispatchers.Default) {
-            val url = config.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
-            val nsUrl = NSURL.URLWithString(url) ?: return@withContext
-            val asset = AVURLAsset.assetWithURL(nsUrl)
-            val generator = AVAssetImageGenerator(asset)
-            generator.appliesPreferredTrackTransform = true
-            
-            val time = CMTimeMakeWithSeconds(1.0, 600)
-            val cgImage = generator.copyCGImageAtTime(time, null, null)
-            image = cgImage
+    val nsUrl = remember(url) { NSURL.URLWithString(url) ?: NSURL.URLWithString("")!! }
+    val bridge = remember(url) {
+        AVPlayerBridge(uRL = nsUrl).apply {
+            setMuted(true)
+            play()
         }
     }
 
-    if (image != null) {
-        UIKitView(
-            factory = { 
-                UIImageView().apply { 
-                    contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
-                    clipsToBounds = true
-                }
-            },
-            update = { 
-                it.image = UIImage.imageWithCGImage(image) 
-            },
-            modifier = modifier
-        )
-    } else {
-        Box(
-            modifier = modifier.background(
-                Brush.linearGradient(listOf(Color(0xFF37474F), Color(0xFF263238))),
-            ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "event $eventNumber",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-            )
+    DisposableEffect(url) {
+        onDispose {
+            bridge.replaceCurrentItemWithItem(null)
         }
     }
+
+    UIKitView(
+        factory = { 
+            bridge.createPlayerView()!!.apply {
+                clipsToBounds = true
+            }
+        },
+        modifier = modifier
+    )
 }

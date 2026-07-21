@@ -3,6 +3,7 @@ package com.livingpresence.inner.circle.squared
 import android.app.Activity
 import android.graphics.Bitmap
 import android.util.Log
+import com.livingpresence.inner.circle.squared.transcription.TranscriptionProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -171,9 +172,8 @@ private fun ExoPlayerScreen(
     val fullscreen = rememberFullscreenToggle()
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
-    // taps PCM; captions render via CaptionOverlay below. Lazily downloads the
-    // Whisper model on first enable (~147 MB, from Hugging Face, not bundled).
-    val captionController = rememberCaptionController(player)
+    // taps PCM; captions render via CaptionOverlay below.
+    val captionController = rememberCaptionController()
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
     var sliderFraction by remember(player) { mutableStateOf(0f) }
@@ -360,11 +360,37 @@ private fun ExoPlayerScreen(
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            QualityMenu(player = player, renditions = renditions)
+                            QualityMenu(
+                                renditions = renditions,
+                                onSetAuto = {
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .clearVideoSizeConstraints()
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                        .build()
+                                },
+                                onPinToRendition = { rendition ->
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .setMinVideoSize(rendition.width, rendition.height)
+                                        .setMaxVideoSize(rendition.width, rendition.height)
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                        .build()
+                                },
+                                onDisableVideo = {
+                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                        .buildUpon()
+                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
+                                        .build()
+                                }
+                            )
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
-                            // Phase 8: closed-captions toggle (on-device Whisper).
+                            // Live captions: provider switch (shown when on) + CC toggle.
+                            if (captionController.enabled) {
+                                CaptionProviderButton(controller = captionController)
+                            }
                             CaptionToggleButton(controller = captionController)
                         }
                     }
@@ -436,8 +462,8 @@ private fun ExoPlayerScreen(
                 // Debug stats overlay (toggle).
                 if (showStats) {
                     StatsOverlay(
-                        player = player,
-                        state = state,
+                        currentHeight = state.videoSize.height.takeIf { it > 0 },
+                        bufferedAfterMs = (player.bufferedPosition - player.currentPosition).coerceAtLeast(0L),
                         renditions = renditions,
                         modifier = Modifier
                             .align(Alignment.TopStart)
@@ -640,24 +666,6 @@ private fun PlayerControlPanel(
     }
 }
 
-@Composable
-private fun CaptionToggleButton(controller: CaptionController) {
-    val ready by controller.ready.collectAsState()
-    val loadError by controller.loadError.collectAsState()
-    val label = when {
-        controller.enabled && loadError != null -> "CC!"
-        controller.enabled && !ready && controller.downloadProgress > 0 && controller.downloadProgress < 100 -> "${controller.downloadProgress}%"
-        controller.enabled && !ready -> "CC…"
-        controller.enabled -> "CC●"
-        else -> "CC"
-    }
-    TextButton(onClick = controller.onToggle) {
-        Text(
-            text = label,
-            color = if (controller.enabled) Color.White else Color.White.copy(alpha = 0.7f),
-        )
-    }
-}
 
 
 

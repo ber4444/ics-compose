@@ -13,6 +13,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.WindowCompat
+import com.livingpresence.inner.circle.squared.transcription.TranscriptionSecrets
 import java.util.concurrent.atomic.AtomicReference
 
 class MainActivity : ComponentActivity() {
@@ -37,8 +38,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        HostBridge.verticalDemoUrl = { BuildConfig.VERTICAL_DEMO_URL }
         HostBridge.isDebug = { BuildConfig.DEBUG }
+
+        // Streaming-ASR keys from the gitignored secrets.properties (via BuildConfig).
+        // Empty when unset — the caption clients then surface a "missing key" error.
+        TranscriptionSecrets.deepgramApiKey = BuildConfig.DEEPGRAM_API_KEY
+        TranscriptionSecrets.sonioxApiKey = BuildConfig.SONIOX_API_KEY
+        TranscriptionSecrets.assemblyAiApiKey = BuildConfig.ASSEMBLYAI_API_KEY
 
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
