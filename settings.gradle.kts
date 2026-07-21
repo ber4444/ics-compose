@@ -8,9 +8,9 @@ pluginManagement {
 
     plugins {
         id("com.android.application") version "9.3.0"
-        id("org.jetbrains.kotlin.android") version "2.4.9"
-        id("org.jetbrains.kotlin.multiplatform") version "2.4.9"
-        id("org.jetbrains.kotlin.plugin.compose") version "2.4.9"
+        id("org.jetbrains.kotlin.android") version "2.4.0"
+        id("org.jetbrains.kotlin.multiplatform") version "2.4.0"
+        id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
         id("org.jetbrains.compose") version "1.11.1"
     }
 }
