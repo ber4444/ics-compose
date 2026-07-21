@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -76,25 +77,6 @@ private const val APP_TAG = "InnerCircleSquared"
 private const val CONTROLS_AUTO_HIDE_MS = 3_000L
 private const val LIVE_EDGE_THRESHOLD_MS = 3_000L
 
-/**
- * What the service-owned player is currently asked to load. The production path
- * resolves an event into a ladder-synthesized media-item URI; a demo source
- * (plan.md FU-4, debug-only) is an arbitrary URL with no ladder synthesis.
- */
-internal sealed interface PlaybackLoadRequest {
-    /** Stable identity so the load effect only re-runs when the source changes. */
-    val loadKey: String
-}
-
-/** The production event stream, resolved via [LadderMediaSourceBuilder]. */
-internal class ProductionSource(val resolvedMediaItemUri: String) : PlaybackLoadRequest {
-    override val loadKey: String = "prod:$resolvedMediaItemUri"
-}
-
-/** A debug demo source (bipbop / vertical / …) loaded as a plain media item. */
-internal class DemoLoadRequest(val source: DemoSource) : PlaybackLoadRequest {
-    override val loadKey: String = "demo:${source.name}:${source.url}"
-}
 
 /**
  * Scrub-preview tunables (plan.md FU-1, Scrutiny #1).
@@ -107,7 +89,10 @@ private val SliderThumbRadius = 10.dp
 
 actual fun createHttpClient(): HttpClient = HttpClient()
 
-actual fun eventsPassword(): String = HostBridge.eventsPassword()
+
+actual fun onEventClick(eventNumber: Int, defaultAction: () -> Unit) {
+    defaultAction()
+}
 
 @Composable
 actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
@@ -145,13 +130,6 @@ actual fun PlatformPlayerScreen(
         }
     }
 
-    // What the player is currently asked to play. Defaults to the production
-    // (ladder-resolved) source; the debug "Demo" menu swaps in an arbitrary URL
-    // (plan.md FU-4) by switching this state, bypassing ladder synthesis.
-    var activeLoad by remember(url) {
-        mutableStateOf<PlaybackLoadRequest>(ProductionSource(url))
-    }
-
     val resolvedItem = itemResult
     if (controller == null || resolvedItem == null) {
         PlayerLoadingState(onClose = onClose)
@@ -160,13 +138,11 @@ actual fun PlatformPlayerScreen(
 
     ExoPlayerScreen(
         player = controller,
-        renditions = if (activeLoad is ProductionSource) resolvedItem.renditions else null,
-        loadRequest = activeLoad,
+        renditions = resolvedItem.renditions,
+        resolvedMediaItemUri = resolvedItem.mediaItemUri,
         url = url,
         eventNumber = eventNumber,
         onClose = onClose,
-        onSelectDemoSource = { source -> activeLoad = DemoLoadRequest(source) },
-        onSelectProduction = { activeLoad = ProductionSource(url) },
     )
 }
 
@@ -174,29 +150,17 @@ actual fun PlatformPlayerScreen(
 private fun ExoPlayerScreen(
     player: Player,
     renditions: List<ProbedRendition>?,
-    loadRequest: PlaybackLoadRequest,
+    resolvedMediaItemUri: String,
     url: String,
     eventNumber: Int?,
     onClose: () -> Unit,
-    onSelectDemoSource: (DemoSource) -> Unit,
-    onSelectProduction: () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val videoTapInteractionSource = remember { MutableInteractionSource() }
 
-    // Hand the media item to the service-owned player whenever the source
-    // changes. Production sources use the ladder-resolved URI (forced HLS); demo
-    // sources load the URL as a plain item so ExoPlayer infers the type.
-    LaunchedEffect(player, loadRequest.loadKey) {
-        val item = when (loadRequest) {
-            is ProductionSource -> playbackMediaItem(loadRequest.resolvedMediaItemUri)
-            is DemoLoadRequest -> demoMediaItem(
-                url = loadRequest.source.url,
-                title = loadRequest.source.label,
-                mimeType = loadRequest.source.mimeAwareMimeType,
-            )
-        }
+    LaunchedEffect(player, resolvedMediaItemUri) {
+        val item = playbackMediaItem(resolvedMediaItemUri)
         player.setMediaItem(item)
         player.prepare()
         player.playWhenReady = true
@@ -207,8 +171,8 @@ private fun ExoPlayerScreen(
     val fullscreen = rememberFullscreenToggle()
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
-    // taps PCM; captions render via CaptionOverlay below. Lazily loads the Vosk
-    // model on first enable (~50 MB, shipped as an asset, not bundled).
+    // taps PCM; captions render via CaptionOverlay below. Lazily downloads the
+    // Whisper model on first enable (~147 MB, from Hugging Face, not bundled).
     val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
@@ -394,36 +358,14 @@ private fun ExoPlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = onClose) { Text("Close", color = Color.White) }
+                        Spacer(modifier = Modifier.weight(1f))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isPortraitVideo(state.videoAspectRatio)) {
-                                TextButton(onClick = {
-                                    state.resizeMode = nextPortraitResizeMode(state.resizeMode)
-                                }) { Text("Fit", color = Color.White) }
-                            } else {
-                                // Landscape content: offer rotate-to-fullscreen (plan.md FU-4).
-                                RotateButton(toggle = fullscreen)
-                            }
-                            ResizeToggleButton(
-                                resizeMode = state.resizeMode,
-                                onCycle = { state.resizeMode = nextResizeMode(state.resizeMode) },
-                            )
                             QualityMenu(player = player, renditions = renditions)
                             TextButton(onClick = { showStats = !showStats }) {
                                 Text("Stats", color = Color.White)
                             }
-                            // Phase 8: closed-captions toggle (on-device Vosk).
+                            // Phase 8: closed-captions toggle (on-device Whisper).
                             CaptionToggleButton(controller = captionController)
-                            // Debug-only demo-sources menu (Apple bipbop ladder +
-                            // a vertical sample + the production events), proving
-                            // Demo vertical stream injection
-                            if (HostBridge.isDebug()) {
-                                DemoSourcesMenu(
-                                    activeUrl = currentLoadUrl(loadRequest),
-                                    onDemoSourceSelected = onSelectDemoSource,
-                                    onProductionSelected = onSelectProduction,
-                                )
-                            }
                         }
                     }
                 }
@@ -605,9 +547,6 @@ private fun PlayerLoadingState(onClose: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(color = Color.White)
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            TextButton(onClick = onClose) { Text("Close", color = Color.White) }
-        }
     }
 }
 
@@ -707,6 +646,7 @@ private fun CaptionToggleButton(controller: CaptionController) {
     val loadError by controller.loadError.collectAsState()
     val label = when {
         controller.enabled && loadError != null -> "CC!"
+        controller.enabled && !ready && controller.downloadProgress > 0 && controller.downloadProgress < 100 -> "${controller.downloadProgress}%"
         controller.enabled && !ready -> "CC…"
         controller.enabled -> "CC●"
         else -> "CC"
@@ -719,19 +659,7 @@ private fun CaptionToggleButton(controller: CaptionController) {
     }
 }
 
-@Composable
-private fun ResizeToggleButton(resizeMode: ResizeMode, onCycle: () -> Unit) {
-    TextButton(onClick = onCycle) {
-        Text(
-            text = when (resizeMode) {
-                ResizeMode.FIT -> "Fit"
-                ResizeMode.FILL -> "Fill"
-                ResizeMode.ZOOM -> "Zoom"
-            },
-            color = Color.White,
-        )
-    }
-}
+
 
 @Composable
 private fun PlayerErrorOverlay(
@@ -760,7 +688,6 @@ private fun PlayerErrorOverlay(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onRetry) { Text("Retry") }
-            TextButton(onClick = onClose) { Text("Close", color = Color.White) }
         }
     }
 }
@@ -825,10 +752,6 @@ private fun nextPortraitResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
     else -> ResizeMode.FIT
 }
 
-private fun currentLoadUrl(loadRequest: PlaybackLoadRequest): String = when (loadRequest) {
-    is DemoLoadRequest -> loadRequest.source.url
-    is ProductionSource -> loadRequest.resolvedMediaItemUri
-}
 
 private fun parseEventNumber(url: String): Int? =
     Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)?.toIntOrNull()

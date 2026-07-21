@@ -28,23 +28,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.savedstate.read
+import com.livingpresence.mediakit.EventInfo
 
 private object AppRoute {
-    const val Login = "login"
     const val Gallery = "gallery"
     const val PlayerEventNumberArg = "eventNumber"
     const val Player = "player/{$PlayerEventNumberArg}"
@@ -73,19 +69,9 @@ fun App() {
 
             NavHost(
                 navController = navController,
-                startDestination = AppRoute.Login,
+                startDestination = AppRoute.Gallery,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                composable(route = AppRoute.Login) {
-                    LoginScreen(
-                        uiState = uiState,
-                        onPasswordChange = mainViewModel::onPasswordChanged,
-                        onShowGallery = {
-                            mainViewModel.showGallery()
-                            navController.navigate(AppRoute.Gallery)
-                        },
-                    )
-                }
 
                 composable(route = AppRoute.Gallery) {
                     GalleryScreen(
@@ -93,9 +79,10 @@ fun App() {
                         onRetry = mainViewModel::retryLoadingVideos,
                         onPlayEvent = { eventNumber ->
                             mainViewModel.playVideo(eventNumber)
-                            navController.navigate(AppRoute.player(eventNumber))
+                            onEventClick(eventNumber) {
+                                navController.navigate(AppRoute.player(eventNumber))
+                            }
                         },
-                        onClose = navController::popBackStack,
                     )
                 }
 
@@ -128,7 +115,7 @@ private fun rememberMainViewModel(): MainViewModel {
     // and threw an unrecoverable exception under Kotlin/Wasm (swallowed by the
     // coroutine handler → blank screen). MainViewModel holds no SavedState, so a
     // plain `remember` is correct and works across all targets.
-    return remember(videoRepository) { MainViewModel(videoRepository, eventsPassword()) }
+    return remember(videoRepository) { MainViewModel(videoRepository) }
 }
 
 @Composable
@@ -144,84 +131,6 @@ fun InnerCircleSquaredTheme(content: @Composable () -> Unit) {
     )
 }
 
-@Composable
-fun LoginScreen(
-    uiState: MainUiState,
-    onPasswordChange: (String) -> Unit,
-    onShowGallery: () -> Unit,
-) {
-    val uriHandler = LocalUriHandler.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clipToBounds()
-            .then(loginBackgroundModifier()),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = onShowGallery,
-                enabled = uiState.isLiveEventsEnabled,
-                modifier = Modifier.width(150.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFEF5350),
-                    disabledContainerColor = Color.Gray,
-                ),
-            ) {
-                Text("Live Events")
-            }
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            TextField(
-                value = uiState.password,
-                onValueChange = onPasswordChange,
-                label = { Text("Login to events") },
-                modifier = Modifier
-                    .width(160.dp)
-                    .background(Color(0x99FFFFFF)),
-                colors = TextFieldDefaults.colors(
-                    focusedTextColor = Color.Red,
-                    unfocusedTextColor = Color.Red,
-                    cursorColor = Color.Red,
-                    focusedContainerColor = Color(0x99FFFFFF),
-                    unfocusedContainerColor = Color(0x99FFFFFF),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-                singleLine = true,
-            )
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Button(
-                onClick = { uriHandler.openUri("https://www.propylaia.org:443/wordpress/") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)),
-            ) {
-                Text("Teaching Payments")
-            }
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Button(
-                onClick = { uriHandler.openUri("https://s4898.americommerce.com") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)),
-            ) {
-                Text("Event Payments")
-            }
-        }
-    }
-}
-
 /**
  * Full-screen gallery of available events. Hosts the [LiveEventsGallery] feed
  * with a top bar offering a back/close affordance.
@@ -231,29 +140,43 @@ fun GalleryScreen(
     uiState: MainUiState,
     onRetry: () -> Unit,
     onPlayEvent: (Int) -> Unit,
-    onClose: () -> Unit,
 ) {
     val downloadController = rememberDownloadController()
     val downloadStates by downloadController.states.collectAsState()
 
+    val offlineEvents = remember(uiState.videoLoadError, uiState.availableEvents, downloadStates) {
+        val shouldFallback = uiState.videoLoadError != null || uiState.availableEvents.isEmpty()
+        if (shouldFallback && downloadController.isSupported) {
+            downloadStates.values
+                .filter { it.state == DownloadStatus.COMPLETED }
+                .map { state ->
+                    EventInfo(
+                        eventNumber = state.eventNumber,
+                        isLive = false,
+                        durationMs = 0L
+                    )
+                }
+        } else {
+            emptyList()
+        }
+    }
+
+    val displayEvents = if (offlineEvents.isNotEmpty()) offlineEvents else uiState.availableEvents
+    val displayError = if (offlineEvents.isNotEmpty()) null else uiState.videoLoadError
+
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LiveEventsGallery(
-            events = uiState.availableEvents,
+            events = displayEvents,
             isLoading = uiState.isLoadingVideos,
-            error = uiState.videoLoadError,
+            error = displayError,
             onPlayEvent = onPlayEvent,
             onRetry = onRetry,
             modifier = Modifier.fillMaxSize(),
-            downloadStates = downloadStates,
-            onDownload = downloadController::enqueue,
-            onRemoveDownload = downloadController::remove,
+            downloadStates = if (downloadController.isSupported) downloadStates else null,
+            onDownload = if (downloadController.isSupported) {
+                { event -> downloadController.enqueue(event) }
+            } else null,
+            onRemoveDownload = if (downloadController.isSupported) downloadController::remove else null,
         )
-
-        TextButton(
-            onClick = onClose,
-            modifier = Modifier.padding(8.dp),
-        ) {
-            Text("Close")
-        }
     }
 }

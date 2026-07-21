@@ -11,13 +11,18 @@ expect fun createHttpClient(): HttpClient
  * The login-gate password, sourced per-platform (Android: BuildConfig from a
  * gradle property; wasmJs: a default) so it isn't in common source.
  */
-expect fun eventsPassword(): String
 
 @Composable
 expect fun PlatformPlayerScreen(
     url: String,
     onClose: () -> Unit,
 )
+
+/**
+ * Platform-specific click handler for event tiles.
+ * Wasm bypasses the player screen and opens the stream in a new tab directly.
+ */
+expect fun onEventClick(eventNumber: Int, defaultAction: () -> Unit)
 
 /**
  * Platform-specific thumbnail for an event tile. Android renders a frame

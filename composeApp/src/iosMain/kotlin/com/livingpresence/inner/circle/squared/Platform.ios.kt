@@ -19,15 +19,22 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import org.jetbrains.compose.resources.painterResource
+import com.livingpresence.inner.circle.squared.generated.resources.Res
+import com.livingpresence.inner.circle.squared.generated.resources.background_image
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import cnames.supported.AVPlayerBridge
@@ -41,6 +48,10 @@ import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSURL
 import platform.UIKit.UIView
+import platform.UIKit.UIImageView
+import platform.UIKit.UIImage
+import platform.UIKit.UIViewContentMode
+import platform.CoreGraphics.CGImageRef
 import kotlin.math.roundToLong
 
 /**
@@ -59,11 +70,15 @@ import kotlin.math.roundToLong
  */
 actual fun createHttpClient(): HttpClient = HttpClient(Darwin)
 
-actual fun eventsPassword(): String = "SECRET"
+
+actual fun onEventClick(eventNumber: Int, defaultAction: () -> Unit) {
+    defaultAction()
+}
 
 @Composable
-actual fun loginBackgroundModifier(): Modifier = Modifier.background(
-    Brush.verticalGradient(listOf(Color(0xFF1A237E), Color(0xFFB71C1C))),
+actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
+    painter = painterResource(Res.drawable.background_image),
+    contentScale = ContentScale.Crop,
 )
 
 @Composable
@@ -199,16 +214,15 @@ actual fun PlatformPlayerScreen(
             }
         }
 
-        // Top bar: close + PiP (when supported).
+        // Top bar: PiP (when supported).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.55f))
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onClose) { Text("Close", color = Color.White) }
             if (pipController != null) {
                 TextButton(onClick = {
                     if (pipController.isPictureInPictureActive()) {
@@ -268,19 +282,48 @@ actual fun LiveEventThumbnail(
     contentDescription: String?,
     modifier: Modifier,
 ) {
-    // iOS Phase 7: a poster placeholder mirroring the wasmJs fallback. Frame
-    // extraction for tiles (AVAssetImageGenerator on progressive / a native
-    // equivalent on HLS) is a follow-up; the gallery remains fully usable.
-    Box(
-        modifier = modifier.background(
-            Brush.linearGradient(listOf(Color(0xFF37474F), Color(0xFF263238))),
-        ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "event $eventNumber",
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
+    val config = com.livingpresence.mediakit.MediaKitConfig.Default
+    var image by remember(eventNumber) { mutableStateOf<CGImageRef?>(null) }
+    
+    LaunchedEffect(eventNumber) {
+        withContext(Dispatchers.Default) {
+            val url = config.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
+            val nsUrl = NSURL.URLWithString(url) ?: return@withContext
+            val asset = AVURLAsset.assetWithURL(nsUrl)
+            val generator = AVAssetImageGenerator(asset)
+            generator.appliesPreferredTrackTransform = true
+            
+            val time = CMTimeMakeWithSeconds(1.0, 600)
+            val cgImage = generator.copyCGImageAtTime(time, null, null)
+            image = cgImage
+        }
+    }
+
+    if (image != null) {
+        UIKitView(
+            factory = { 
+                UIImageView().apply { 
+                    contentMode = UIViewContentMode.UIViewContentModeScaleAspectFill
+                    clipsToBounds = true
+                }
+            },
+            update = { 
+                it.image = UIImage.imageWithCGImage(image) 
+            },
+            modifier = modifier
         )
+    } else {
+        Box(
+            modifier = modifier.background(
+                Brush.linearGradient(listOf(Color(0xFF37474F), Color(0xFF263238))),
+            ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "event $eventNumber",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
     }
 }

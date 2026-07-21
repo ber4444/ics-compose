@@ -9,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
  * shared Kotlin Multiplatform UI module (:composeApp).
  */
 object HostBridge {
-    var eventsPassword: () -> String = { "SECRET" }
     var verticalDemoUrl: () -> String = { "" }
     var isDebug: () -> Boolean = { false }
 

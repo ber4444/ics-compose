@@ -26,6 +26,7 @@ public object PlaylistInspector {
         public val durationSeconds: Double,
         public val targetDurationSeconds: Int,
         public val segmentCount: Int,
+        public val segmentUris: List<String>,
     )
 
     /**
@@ -89,6 +90,7 @@ public object PlaylistInspector {
         var targetDuration = 0
         var totalDuration = 0.0
         var segmentCount = 0
+        val segmentUris = mutableListOf<String>()
 
         for (raw in lines) {
             val line = raw.trim()
@@ -107,6 +109,9 @@ public object PlaylistInspector {
                     totalDuration += durationStr.toDoubleOrNull() ?: 0.0
                     segmentCount += 1
                 }
+                line.isNotEmpty() && !line.startsWith("#") -> {
+                    segmentUris.add(line)
+                }
             }
         }
 
@@ -115,6 +120,7 @@ public object PlaylistInspector {
             durationSeconds = totalDuration,
             targetDurationSeconds = targetDuration,
             segmentCount = segmentCount,
+            segmentUris = segmentUris,
         )
     }
 

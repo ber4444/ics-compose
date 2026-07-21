@@ -13,15 +13,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +33,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import com.livingpresence.mediakit.EventInfo
 import kotlin.math.ceil
 
@@ -53,10 +64,16 @@ fun LiveEventsGallery(
     onDownload: ((EventInfo) -> Unit)? = null,
     onRemoveDownload: ((Int) -> Unit)? = null,
 ) {
-    Box(
+    @OptIn(ExperimentalMaterial3Api::class)
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = onRetry,
         modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
     ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
         when {
             isLoading && events.isEmpty() -> {
                 CircularProgressIndicator()
@@ -85,6 +102,7 @@ fun LiveEventsGallery(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -95,68 +113,23 @@ private fun EventFeed(
     onDownload: ((EventInfo) -> Unit)?,
     onRemoveDownload: ((Int) -> Unit)?,
 ) {
-    BoxWithConstraints(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 220.dp),
         modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // One row if the events fit, two rows once they exceed a single screen's
-        // worth (keeps the feed scannable for the ~20-event catalog).
-        val tileWidth = 220.dp
-        val gap = 12.dp
-        val perRow = (maxWidth / (tileWidth + gap)).toInt().coerceAtLeast(1)
-        val rowCount = if (events.size > perRow * 2) 2 else 1
-
-        if (rowCount == 1) {
-            LazyRow(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(gap),
-            ) {
-                items(events, key = { it.eventNumber }) { event ->
-                    LiveEventTile(
-                        event = event,
-                        onPlayEvent = onPlayEvent,
-                        downloadState = downloadStates?.get(event.eventNumber),
-                        onDownload = onDownload,
-                        onRemoveDownload = onRemoveDownload,
-                        modifier = Modifier.width(tileWidth),
-                    )
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(gap),
-            ) {
-                val chunked = chunkBalanced(events, 2)
-                for (row in chunked) {
-                    LazyRow(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(gap),
-                    ) {
-                        items(row, key = { it.eventNumber }) { event ->
-                            LiveEventTile(
-                                event = event,
-                                onPlayEvent = onPlayEvent,
-                                downloadState = downloadStates?.get(event.eventNumber),
-                                onDownload = onDownload,
-                                onRemoveDownload = onRemoveDownload,
-                                modifier = Modifier.width(tileWidth),
-                            )
-                        }
-                    }
-                }
-            }
+        items(events, key = { it.eventNumber }) { event ->
+            LiveEventTile(
+                event = event,
+                onPlayEvent = onPlayEvent,
+                downloadState = downloadStates?.get(event.eventNumber),
+                onDownload = onDownload,
+                onRemoveDownload = onRemoveDownload,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-    }
-}
-
-/** Split [items] into [rows] row-lists as evenly as possible, preserving order. */
-private fun <T> chunkBalanced(items: List<T>, rows: Int): List<List<T>> {
-    if (items.isEmpty()) return List(rows) { emptyList() }
-    val perRow = ceil(items.size.toDouble() / rows).toInt()
-    return items.chunked(perRow).let { chunks ->
-        if (chunks.size < rows) chunks + List(rows - chunks.size) { emptyList() }
-        else chunks
     }
 }
 
@@ -243,13 +216,13 @@ private fun DownloadAffordance(
     val status = state?.state ?: DownloadStatus.NOT_DOWNLOADED
     when (status) {
         DownloadStatus.COMPLETED -> {
-            TextButton(onClick = onRemove) {
-                Text("✓", color = Color(0xFFB9F6CA))
+            IconButton(onClick = onRemove) {
+                CheckIcon(color = Color(0xFFB9F6CA))
             }
         }
         DownloadStatus.DOWNLOADING, DownloadStatus.QUEUED -> {
             val percent = state?.percent ?: 0f
-            TextButton(onClick = onRemove) {
+            IconButton(onClick = onRemove) {
                 Text(
                     "${percent.toInt()}%",
                     color = Color.White,
@@ -258,10 +231,40 @@ private fun DownloadAffordance(
             }
         }
         DownloadStatus.FAILED, DownloadStatus.NOT_DOWNLOADED, DownloadStatus.REMOVING -> {
-            TextButton(onClick = onDownload) {
-                Text("⬇", color = Color.White)
+            IconButton(onClick = onDownload) {
+                DownloadIcon(color = Color.White)
             }
         }
+    }
+}
+
+@Composable
+private fun DownloadIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(24.dp)) {
+        val path = Path().apply {
+            moveTo(size.width * 0.5f, size.height * 0.8f)
+            lineTo(size.width * 0.2f, size.height * 0.5f)
+            lineTo(size.width * 0.4f, size.height * 0.5f)
+            lineTo(size.width * 0.4f, size.height * 0.2f)
+            lineTo(size.width * 0.6f, size.height * 0.2f)
+            lineTo(size.width * 0.6f, size.height * 0.5f)
+            lineTo(size.width * 0.8f, size.height * 0.5f)
+            close()
+        }
+        drawPath(path = path, color = color)
+        drawLine(color = color, start = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.9f), end = androidx.compose.ui.geometry.Offset(size.width * 0.8f, size.height * 0.9f), strokeWidth = size.width * 0.1f, cap = StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun CheckIcon(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(24.dp)) {
+        val path = Path().apply {
+            moveTo(size.width * 0.2f, size.height * 0.5f)
+            lineTo(size.width * 0.4f, size.height * 0.7f)
+            lineTo(size.width * 0.8f, size.height * 0.3f)
+        }
+        drawPath(path = path, color = color, style = Stroke(width = size.width * 0.1f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

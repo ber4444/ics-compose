@@ -74,21 +74,23 @@ private class CaptionAudioBufferSink(
     private val engine: TranscriptionEngine,
 ) : TeeAudioProcessor.AudioBufferSink {
 
-    private var sampleRate = 0
-    private var channelCount = 0
-    private var encoding = 0
+    private var sampleRate = 48000
+    private var channelCount = 2
+    private var encoding = android.media.AudioFormat.ENCODING_PCM_16BIT
 
     override fun flush(sampleRate: Int, channelCount: Int, encoding: Int) {
         this.sampleRate = sampleRate
         this.channelCount = channelCount
         this.encoding = encoding
+        android.util.Log.d("TranscriptionEngine", "AudioSink flush: rate=$sampleRate, channels=$channelCount, encoding=$encoding")
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
-        // Only 16-bit PCM is forwarded; float/other encodings would need
-        // conversion before Vosk (the engine resamples, but assumes S16).
-        if (encoding != android.media.AudioFormat.ENCODING_PCM_16BIT) return
+        if (encoding != android.media.AudioFormat.ENCODING_PCM_16BIT && 
+            encoding != android.media.AudioFormat.ENCODING_PCM_FLOAT) {
+            return
+        }
         if (!buffer.hasRemaining()) return
-        engine.feedPcm(buffer, sampleRate, channelCount)
+        engine.feedPcm(buffer, sampleRate, channelCount, encoding)
     }
 }

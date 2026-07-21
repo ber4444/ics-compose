@@ -7,6 +7,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 
 /**
  * Probes an event's sibling renditions just-in-time and resolves a synthesized
@@ -51,7 +52,7 @@ public class LadderResolver(
         tier: RenditionTier,
     ): ProbedRendition? {
         val masterUrl = config.renditionUrl(eventNumber, tier)
-        val response = runCatching { httpClient.get(masterUrl) }.getOrNull() ?: return null
+        val response = runCatching { withTimeout(3000L) { httpClient.get(masterUrl) } }.getOrNull() ?: return null
         if (!response.status.isSuccess()) return null
         val masterText = runCatching { response.bodyAsText() }.getOrNull() ?: return null
 
