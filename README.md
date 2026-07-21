@@ -49,10 +49,10 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 | **Scrub Frame Previews** (floating thumbnail) | ✅ | ✅ | ✅ |
 | **Live Event DVR** (drifting seekbar & jump-to-live) | ✅ | ✅ | ✅ |
 | **Pillarboxing & Orientation Handling** | ✅ | ✅ | ✅ |
-| **Background Audio** (auto-shifts to audio-only tier) | ✅ | ✅ | ❌ |
-| **Picture-in-Picture (PiP)** | ✅ | ✅ | ❌ |
+| **Background Audio** (auto-shifts to audio-only tier) | ✅ | ✅ | ✅ |
+| **Picture-in-Picture (PiP)** | ✅ | ✅ | ✅ |
 | **Offline HLS Downloads** | ✅ | ✅ | ❌ |
-| **Preview Disk Caching** (persisted between sessions) | ✅ | ❌ | ❌ |
+| **Preview Disk Caching** (persisted between sessions) | ✅ | ✅ | ❌ |
 | **Memory Governor** (OOM prevention during PiP/bg) | ✅ | ❌ | ❌ |
 
 ## Architecture
