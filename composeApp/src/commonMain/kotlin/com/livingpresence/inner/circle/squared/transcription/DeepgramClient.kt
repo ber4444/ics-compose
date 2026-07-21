@@ -1,9 +1,5 @@
 package com.livingpresence.inner.circle.squared.transcription
 
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.header
-import io.ktor.websocket.Frame
 import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -15,9 +11,13 @@ import kotlinx.serialization.decodeFromString
  * `channel.alternatives[0].transcript` with a top-level `is_final` flag that maps to
  * partial vs finalized cues.
  *
+ * Auth is declared two ways so it works on every transport: the `Authorization` header
+ * (used by the native Ktor transport) and the `token` subprotocol (used by the browser
+ * transport, since a WebSocket handshake can't carry custom headers).
+ *
  * The connect/send/receive lifecycle lives in [WebSocketTranscriber]; this subclass
- * supplies the endpoint, `Token` auth, a periodic KeepAlive, the CloseStream on exit,
- * and Deepgram's JSON shape.
+ * supplies the endpoint, auth, a periodic KeepAlive, the CloseStream on drain, and
+ * Deepgram's JSON shape.
  *
  * @param apiKey supplies the key lazily at [start] time (from [TranscriptionSecrets]).
  * @param sampleRate PCM rate declared to Deepgram; must match what [feedPcm] sends.
@@ -33,19 +33,19 @@ class DeepgramClient(
         "?model=nova-3&encoding=linear16&sample_rate=$sampleRate&channels=1" +
         "&interim_results=true&punctuate=true&smart_format=true"
 
-    override fun HttpRequestBuilder.configureRequest(apiKey: String) {
-        header("Authorization", "Token $apiKey")
-    }
+    override fun headers(apiKey: String) = mapOf("Authorization" to "Token $apiKey")
 
-    override suspend fun DefaultClientWebSocketSession.keepAlive() {
+    override fun subprotocols(apiKey: String) = listOf("token", apiKey)
+
+    override suspend fun keepAlive(ws: WsSession) {
         while (true) {
             delay(3000)
-            runCatching { send(Frame.Text("{\"type\":\"KeepAlive\"}")) }
+            runCatching { ws.sendText("{\"type\":\"KeepAlive\"}") }
         }
     }
 
-    override suspend fun DefaultClientWebSocketSession.onReceiveLoopEnd() {
-        runCatching { send(Frame.Text("{\"type\":\"CloseStream\"}")) }
+    override suspend fun onAudioDrained(ws: WsSession) {
+        runCatching { ws.sendText("{\"type\":\"CloseStream\"}") }
     }
 
     override fun handleMessage(text: String) {

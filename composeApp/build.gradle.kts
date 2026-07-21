@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import java.security.MessageDigest
 import java.util.Properties
 
 plugins {
@@ -265,6 +266,33 @@ kotlin.sourceSets.named("wasmJsMain") {
 compose.resources {
     publicResClass = true
     packageOfResClass = "com.livingpresence.inner.circle.squared.generated.resources"
+}
+
+// Cache-bust the fixed-name composeApp.js in the generated index.html. Browsers cache
+// it aggressively (it has no content hash in its name), so after a rebuild a plain
+// reload can run a stale bundle. After each web distribution we append a content-hash
+// query (?v=<hash>) to the <script src>, so the browser refetches only when the bundle
+// actually changed.
+tasks.matching {
+    it.name.matches(Regex("wasmJsBrowser(Development|Production)ExecutableDistribution"))
+}.configureEach {
+    val variantDir = if (name.contains("Development")) "developmentExecutable" else "productionExecutable"
+    val distDir = layout.buildDirectory.dir("dist/wasmJs/$variantDir")
+    doLast {
+        val dir = distDir.get().asFile
+        val indexHtml = dir.resolve("index.html")
+        val jsFile = dir.resolve("composeApp.js")
+        if (!indexHtml.exists() || !jsFile.exists()) return@doLast
+        val hash = MessageDigest.getInstance("SHA-256")
+            .digest(jsFile.readBytes())
+            .joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+            .take(10)
+        val marker = "src=\"./composeApp.js\""
+        val text = indexHtml.readText()
+        if (marker in text) {
+            indexHtml.writeText(text.replace(marker, "src=\"./composeApp.js?v=$hash\""))
+        }
+    }
 }
 
 dependencies {

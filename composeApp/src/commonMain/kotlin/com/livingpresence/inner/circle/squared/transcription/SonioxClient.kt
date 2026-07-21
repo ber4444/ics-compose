@@ -1,10 +1,5 @@
 package com.livingpresence.inner.circle.squared.transcription
 
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.header
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -18,9 +13,10 @@ import kotlinx.serialization.json.Json
  * tokens, each flagged `is_final`; final tokens are concatenated into a line that is
  * committed as a cue at sentence boundaries, while non-final tokens form the live tail.
  *
- * The connect/send/receive lifecycle lives in [WebSocketTranscriber]; this subclass
- * supplies the endpoint, `Bearer` auth, the config handshake, the `finalize` on
- * end-of-stream, close-reason reporting, and Soniox's token protocol.
+ * Because the key travels in the config frame (not a handshake header), Soniox works
+ * unchanged on the browser transport. The connect/send/receive lifecycle lives in
+ * [WebSocketTranscriber]; this subclass supplies the endpoint, the config handshake,
+ * the `finalize` on end-of-stream, close-reason reporting, and Soniox's token protocol.
  *
  * NOTE: endpoint host and field names should be re-verified against current Soniox
  * docs (see docs/live-captions-plan.md) — they change and this hasn't been run against
@@ -39,28 +35,25 @@ class SonioxClient(
     /** Final tokens accumulated for the current (not-yet-committed) caption line. */
     private val lineBuffer = StringBuilder()
 
-    override fun HttpRequestBuilder.configureRequest(apiKey: String) {
-        header("Authorization", "Bearer $apiKey")
-    }
+    override fun headers(apiKey: String) = mapOf("Authorization" to "Bearer $apiKey")
 
-    override suspend fun DefaultClientWebSocketSession.onOpen(apiKey: String) {
+    override suspend fun onOpen(ws: WsSession, apiKey: String) {
         lineBuffer.clear()
         val config = SonioxConfig(
             apiKey = apiKey,
             sampleRate = sampleRate,
             languageHints = languageHints,
         )
-        send(Frame.Text(json.encodeToString(config)))
+        ws.sendText(json.encodeToString(config))
     }
 
-    override suspend fun DefaultClientWebSocketSession.onAudioDrained() {
+    override suspend fun onAudioDrained(ws: WsSession) {
         // Empty audio frame / finalize signals end-of-stream to Soniox.
-        runCatching { send(Frame.Text("{\"type\":\"finalize\"}")) }
+        runCatching { ws.sendText("{\"type\":\"finalize\"}") }
     }
 
-    override suspend fun DefaultClientWebSocketSession.onReceiveLoopEnd() {
-        val reason = runCatching { closeReason.await() }.getOrNull()
-        if (reason != null && reason.knownReason != CloseReason.Codes.NORMAL) {
+    override fun onClosed(reason: String?) {
+        if (reason != null) {
             val msg = "Soniox Closed: $reason"
             setError(msg)
             accumulator.setPartial(msg)

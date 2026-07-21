@@ -1,13 +1,6 @@
 package com.livingpresence.inner.circle.squared.transcription
 
 import com.livingpresence.inner.circle.squared.CaptionCue
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.websocket.Frame
-import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,8 +19,10 @@ import kotlin.coroutines.cancellation.CancellationException
  * caption flow wiring. Subclasses supply only the parts that genuinely differ —
  * the endpoint, auth, optional handshake/keep-alive frames, and message parsing.
  *
- * The receive loop reads inbound text frames and forwards them to [handleMessage];
- * outbound audio is drained from a bounded [Channel] populated by [feedPcm].
+ * The transport ([WsTransport]) is platform-specific — Ktor on native, a raw browser
+ * `WebSocket` on web — so subclasses declare auth as [headers] (used where the platform
+ * can set them) plus [subprotocols] (used by the browser transport for `token` auth),
+ * and never touch the socket directly.
  */
 abstract class WebSocketTranscriber(
     private val apiKey: () -> String,
@@ -35,7 +30,7 @@ abstract class WebSocketTranscriber(
 ) : StreamingTranscriber {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val client = HttpClient { install(WebSockets) }
+    private val transport = createWsTransport()
     protected val accumulator = CaptionAccumulator()
 
     private val _status = MutableStateFlow(TranscriberStatus.IDLE)
@@ -53,23 +48,26 @@ abstract class WebSocketTranscriber(
     /** Human-readable provider name, used in default error/log messages. */
     protected abstract val providerName: String
 
-    /** Adds auth headers (and any query the endpoint needs) to the connect request. */
-    protected abstract fun HttpRequestBuilder.configureRequest(apiKey: String)
+    /** Handshake headers (e.g. `Authorization`). Ignored by the browser transport. */
+    protected open fun headers(apiKey: String): Map<String, String> = emptyMap()
+
+    /** WebSocket subprotocols (e.g. Deepgram's `["token", key]`). Used by the browser transport. */
+    protected open fun subprotocols(apiKey: String): List<String> = emptyList()
 
     /** Parses one inbound text frame and feeds the [accumulator]. */
     protected abstract fun handleMessage(text: String)
 
     /** Optional first frame(s) sent right after connect, before audio (e.g. a config handshake). */
-    protected open suspend fun DefaultClientWebSocketSession.onOpen(apiKey: String) {}
+    protected open suspend fun onOpen(ws: WsSession, apiKey: String) {}
 
     /** Optional periodic frame loop for the session lifetime (e.g. keep-alives). Cancelled on close. */
-    protected open suspend fun DefaultClientWebSocketSession.keepAlive() {}
+    protected open suspend fun keepAlive(ws: WsSession) {}
 
     /** Optional end-of-stream frame sent once the audio channel drains. */
-    protected open suspend fun DefaultClientWebSocketSession.onAudioDrained() {}
+    protected open suspend fun onAudioDrained(ws: WsSession) {}
 
-    /** Optional handling when the receive loop ends (e.g. inspect the close reason). */
-    protected open suspend fun DefaultClientWebSocketSession.onReceiveLoopEnd() {}
+    /** Optional handling of the close reason (null when the socket closed cleanly). */
+    protected open fun onClosed(reason: String?) {}
 
     /** Called when the API key is blank. Default reports a standard "missing key" error. */
     protected open fun onMissingKey() = setError("Missing $providerName API key")
@@ -99,35 +97,30 @@ abstract class WebSocketTranscriber(
         pcm = channel
         job = scope.launch {
             try {
-                client.webSocket(urlString = url, request = { configureRequest(key) }) {
-                    val session = this
-                    session.onOpen(key)
+                val reason = transport.run(
+                    url = url,
+                    subprotocols = subprotocols(key),
+                    headers = headers(key),
+                    onText = { handleMessage(it) },
+                ) { ws ->
+                    onOpen(ws, key)
                     _status.value = TranscriberStatus.LISTENING
-                    val sender = launch {
+                    launch {
                         try {
                             for (chunk in channel) {
-                                if (chunk.isNotEmpty()) session.send(Frame.Binary(fin = true, data = chunk))
+                                if (chunk.isNotEmpty()) ws.sendBinary(chunk)
                             }
-                            session.onAudioDrained()
+                            onAudioDrained(ws)
                         } catch (_: Throwable) { /* connection closing */ }
                     }
-                    val keepAlive = launch { session.keepAlive() }
-                    try {
-                        for (frame in incoming) {
-                            if (frame is Frame.Text) handleMessage(frame.readText())
-                        }
-                    } finally {
-                        keepAlive.cancel()
-                        sender.cancel()
-                        session.onReceiveLoopEnd()
-                    }
+                    launch { keepAlive(ws) }
                 }
+                onClosed(reason)
                 if (_status.value != TranscriberStatus.ERROR) _status.value = TranscriberStatus.IDLE
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 println("$providerName connection error: ${e.message}")
-                e.printStackTrace()
                 setError(e.message ?: "$providerName connection failed")
                 onConnectException(e)
             }
