@@ -24,10 +24,6 @@ internal interface PcmTapSink {
  */
 internal class CaptionAudioRouter private constructor() : PcmTapSink {
 
-    companion object {
-        private const val TARGET_SAMPLE_RATE_HZ = 16000
-    }
-
     private val live = LiveTranscriber()
 
     val captions: StateFlow<List<CaptionCue>> = live.captions
@@ -93,6 +89,8 @@ internal class CaptionAudioRouter private constructor() : PcmTapSink {
     }
 
     companion object {
+        private const val TARGET_SAMPLE_RATE_HZ = 16000
+
         @Volatile
         private var instance: CaptionAudioRouter? = null
 
