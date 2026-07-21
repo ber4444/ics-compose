@@ -19,7 +19,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +43,9 @@ import cnames.supported.AVPlayerBridge
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
 import kotlinx.cinterop.CValue
+import platform.AVFoundation.AVAssetImageGenerator
 import platform.AVFoundation.AVPlayerLayer
+import platform.AVFoundation.AVURLAsset
 import platform.AVKit.AVPictureInPictureController
 import platform.CoreMedia.CMTime
 import platform.CoreMedia.CMTimeGetSeconds
@@ -104,6 +108,9 @@ actual fun PlatformPlayerScreen(
 
     DisposableEffect(url) {
         bridge.play()
+        bridge.installAudioTapWithCallback { pcmData, numFrames, numChannels, sampleRate ->
+            CaptionAudioRouter.get().onPcm(pcmData, numFrames, numChannels, sampleRate)
+        }
 
         // ~4 Hz position + status pump. `queue = null` → main run loop, safe to
         // touch Compose state directly from the block.
@@ -175,6 +182,11 @@ actual fun PlatformPlayerScreen(
                     .background(Color.Black.copy(alpha = 0.55f))
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
+                CaptionOverlay(
+                    captions = CaptionAudioRouter.get().captions,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 if (durationMs > 0L) {
                     val fraction = if (isScrubbing) {
                         scrubFraction

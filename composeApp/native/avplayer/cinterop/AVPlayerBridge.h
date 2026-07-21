@@ -3,6 +3,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+typedef void (^AudioTapCallback)(const float *pcmData, int numFrames, int numChannels, int sampleRate);
+
 /**
  * Thin Objective-C bridge over AVPlayer and AVPlayerLayer.
  *
@@ -50,5 +52,8 @@
 // layer zPosition so it renders below the Compose surface (controls on top).
 // Call from layout.
 - (void)layoutInSuperview:(UIView *)superview;
+
+// Intercepts audio PCM data
+- (void)installAudioTapWithCallback:(AudioTapCallback)callback;
 
 @end

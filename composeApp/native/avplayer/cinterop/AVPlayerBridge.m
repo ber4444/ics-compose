@@ -1,5 +1,52 @@
 #import "AVPlayerBridge.h"
 #import <AVFAudio/AVFAudio.h>
+#import <CoreMedia/CoreMedia.h>
+#import <MediaToolbox/MediaToolbox.h>
+
+@interface AVPlayerBridge ()
+@property (nonatomic, copy) AudioTapCallback tapCallback;
+@end
+
+typedef struct {
+    __unsafe_unretained AVPlayerBridge *bridge;
+    Float64 sampleRate;
+    int channels;
+} TapContext;
+
+static void tapInit(MTAudioProcessingTapRef tap, void *clientInfo, void **tapStorageOut) {
+    TapContext *context = calloc(1, sizeof(TapContext));
+    context->bridge = (__bridge AVPlayerBridge *)clientInfo;
+    *tapStorageOut = context;
+}
+
+static void tapFinalize(MTAudioProcessingTapRef tap) {
+    TapContext *context = (TapContext *)MTAudioProcessingTapGetStorage(tap);
+    free(context);
+}
+
+static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames, const AudioStreamBasicDescription *processingFormat) {
+    TapContext *context = (TapContext *)MTAudioProcessingTapGetStorage(tap);
+    context->sampleRate = processingFormat->mSampleRate;
+    context->channels = processingFormat->mChannelsPerFrame;
+}
+
+static void tapUnprepare(MTAudioProcessingTapRef tap) {
+}
+
+static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames, MTAudioProcessingTapFlags flags, AudioBufferList *bufferListInOut, CMItemCount *numberFramesOut, MTAudioProcessingTapFlags *flagsOut) {
+    TapContext *context = (TapContext *)MTAudioProcessingTapGetStorage(tap);
+    
+    OSStatus status = MTAudioProcessingTapGetSourceAudio(tap, numberFrames, bufferListInOut, flagsOut, NULL, numberFramesOut);
+    if (status != noErr) return;
+    
+    if (context->bridge.tapCallback && bufferListInOut->mNumberBuffers > 0) {
+        AudioBuffer *buffer = &bufferListInOut->mBuffers[0];
+        const float *pcmData = (const float *)buffer->mData;
+        if (pcmData) {
+            context->bridge.tapCallback(pcmData, (int)*numberFramesOut, context->channels, (int)context->sampleRate);
+        }
+    }
+}
 
 @implementation AVPlayerBridge
 
@@ -65,6 +112,43 @@
     // entire native view (player sublayer included) below the Compose surface, so
     // the Compose-drawn controls render on top and stay tappable.
     superview.layer.zPosition = -1.0f;
+}
+
+- (void)installAudioTapWithCallback:(AudioTapCallback)callback {
+    self.tapCallback = callback;
+    AVPlayerItem *item = self.player.currentItem;
+    if (!item) return;
+
+    AVPlayerItemTrack *audioTrack = nil;
+    for (AVPlayerItemTrack *track in item.tracks) {
+        if ([track.assetTrack.mediaType isEqualToString:AVMediaTypeAudio]) {
+            audioTrack = track;
+            break;
+        }
+    }
+    if (!audioTrack) return;
+
+    MTAudioProcessingTapCallbacks callbacks;
+    callbacks.version = kMTAudioProcessingTapCallbacksVersion_0;
+    callbacks.clientInfo = (__bridge void *)self;
+    callbacks.init = tapInit;
+    callbacks.prepare = tapPrepare;
+    callbacks.process = tapProcess;
+    callbacks.unprepare = tapUnprepare;
+    callbacks.finalize = tapFinalize;
+
+    MTAudioProcessingTapRef tap;
+    OSStatus status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PostEffects, &tap);
+    if (status != noErr) return;
+
+    AVMutableAudioMixInputParameters *params = [AVMutableAudioMixInputParameters audioMixInputParametersWithTrack:audioTrack.assetTrack];
+    params.audioTapProcessor = tap;
+    
+    AVMutableAudioMix *audioMix = [AVMutableAudioMix audioMix];
+    audioMix.inputParameters = @[params];
+    item.audioMix = audioMix;
+
+    CFRelease(tap);
 }
 
 @end

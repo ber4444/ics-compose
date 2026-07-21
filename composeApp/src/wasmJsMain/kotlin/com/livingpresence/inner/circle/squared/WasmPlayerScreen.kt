@@ -101,6 +101,36 @@ internal external fun getHlsLevels(hls: kotlin.js.JsAny): String
 @JsFun("function setHlsLevel(hls, index) { if(hls) { hls.currentLevel = index; hls.loadLevel = index; } }")
 internal external fun setHlsLevel(hls: kotlin.js.JsAny, index: Int)
 
+@JsFun("""
+function attachAudioTap(videoElement, onAudioProcess) {
+    if (!window.audioContext) {
+        window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = window.audioContext;
+    const source = ctx.createMediaElementSource(videoElement);
+    const processor = ctx.createScriptProcessor(4096, 1, 1);
+    
+    source.connect(processor);
+    processor.connect(ctx.destination);
+    source.connect(ctx.destination);
+    
+    processor.onaudioprocess = function(e) {
+        const inputData = e.inputBuffer.getChannelData(0);
+        onAudioProcess(inputData, inputData.length, 1, ctx.sampleRate);
+    };
+    // Keep reference to prevent GC
+    videoElement._audioProcessor = processor;
+}
+""")
+internal external fun attachAudioTap(videoElement: kotlin.js.JsAny, onAudioProcess: (kotlin.js.JsAny, Int, Int, Int) -> Unit)
+
+@JsFun("""
+function getFloat32ArrayElement(jsFloat32Array, index) {
+    return jsFloat32Array[index];
+}
+""")
+internal external fun getFloat32ArrayElement(jsArray: kotlin.js.JsAny, index: Int): Float
+
 private fun parseEventNumber(url: String): Int? {
     val regex = "event(\\d+)".toRegex()
     return regex.find(url)?.groupValues?.get(1)?.toIntOrNull()
@@ -158,6 +188,11 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
                 onPause = { isPlaying = false }
             )
             
+            attachAudioTap(video) { pcmData, numFrames, channels, sampleRate ->
+                val floatArray = FloatArray(numFrames) { i -> getFloat32ArrayElement(pcmData, i) }
+                CaptionAudioRouter.get().onPcm(floatArray, numFrames, channels, sampleRate)
+            }
+            
             onDispose {
                 cleanupVideoListeners(video)
                 video.remove()
@@ -203,6 +238,11 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
             }
             
             Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.5f)).padding(8.dp)) {
+                CaptionOverlay(
+                    captions = CaptionAudioRouter.get().captions,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
                 Box(modifier = Modifier.fillMaxWidth()) {
                     // Slider
                     Slider(
