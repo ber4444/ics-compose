@@ -1,0 +1,43 @@
+{
+  "entries": [
+    {
+      "id": "evt1-keynote-01",
+      "source": {
+        "event": "1",
+        "rendition": "_aac",
+        "start_s": 312,
+        "dur_s": 5
+      },
+      "conditions": ["clean"],
+      "domain_terms": [],
+      "ref": "refs/evt1-keynote-01.txt",
+      "verified": false
+    },
+    {
+      "id": "evt42-panel-02",
+      "source": {
+        "event": "evt42",
+        "rendition": "_aac",
+        "start_s": 1200,
+        "dur_s": 60
+      },
+      "conditions": ["multi_speaker", "music_bed"],
+      "domain_terms": [],
+      "ref": "refs/evt42-panel-02.txt",
+      "verified": false
+    },
+    {
+      "id": "evt43-qna-03",
+      "source": {
+        "event": "evt43",
+        "rendition": "_aac",
+        "start_s": 500,
+        "dur_s": 60
+      },
+      "conditions": ["crowd_noise", "poor_mic"],
+      "domain_terms": [],
+      "ref": "refs/evt43-qna-03.txt",
+      "verified": false
+    }
+  ]
+}
