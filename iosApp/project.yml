@@ -19,9 +19,14 @@ targets:
       - path: ics_ios
         excludes:
           - "Info.plist"
+    configFiles:
+      Debug: Secrets.xcconfig
+      Release: Secrets.xcconfig
     info:
       path: Info.plist
       properties:
+        DEEPGRAM_API_KEY: "$(DEEPGRAM_API_KEY)"
+        SONIOX_API_KEY: "$(SONIOX_API_KEY)"
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         LSRequiresIPhoneOS: true
@@ -66,24 +71,15 @@ targets:
         embed: true
         implicit: true
       - sdk: MediaToolbox.framework
-    postCompileScripts:
-      - name: Inject Secrets into Info.plist
+    preBuildScripts:
+      - name: Generate Secrets.xcconfig
         script: |
           PROPS_FILE="${SRCROOT}/../secrets.properties"
-          PLIST_PATH="${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}"
-          if [ -f "$PROPS_FILE" ] && [ -f "$PLIST_PATH" ]; then
-            DEEPGRAM_API_KEY=$(grep "^DEEPGRAM_API_KEY=" "$PROPS_FILE" | cut -d'=' -f2)
-            SONIOX_API_KEY=$(grep "^SONIOX_API_KEY=" "$PROPS_FILE" | cut -d'=' -f2)
-            ASSEMBLYAI_API_KEY=$(grep "^ASSEMBLYAI_API_KEY=" "$PROPS_FILE" | cut -d'=' -f2)
-            
-            if [ -n "$DEEPGRAM_API_KEY" ]; then
-              /usr/libexec/PlistBuddy -c "Set :DEEPGRAM_API_KEY $DEEPGRAM_API_KEY" "$PLIST_PATH" || /usr/libexec/PlistBuddy -c "Add :DEEPGRAM_API_KEY string $DEEPGRAM_API_KEY" "$PLIST_PATH"
-            fi
-            if [ -n "$SONIOX_API_KEY" ]; then
-              /usr/libexec/PlistBuddy -c "Set :SONIOX_API_KEY $SONIOX_API_KEY" "$PLIST_PATH" || /usr/libexec/PlistBuddy -c "Add :SONIOX_API_KEY string $SONIOX_API_KEY" "$PLIST_PATH"
-            fi
-            if [ -n "$ASSEMBLYAI_API_KEY" ]; then
-              /usr/libexec/PlistBuddy -c "Set :ASSEMBLYAI_API_KEY $ASSEMBLYAI_API_KEY" "$PLIST_PATH" || /usr/libexec/PlistBuddy -c "Add :ASSEMBLYAI_API_KEY string $ASSEMBLYAI_API_KEY" "$PLIST_PATH"
-            fi
+          XCCONFIG_FILE="${SRCROOT}/Secrets.xcconfig"
+          if [ -f "$PROPS_FILE" ]; then
+            grep "^DEEPGRAM_API_KEY=" "$PROPS_FILE" > "$XCCONFIG_FILE"
+            grep "^SONIOX_API_KEY=" "$PROPS_FILE" >> "$XCCONFIG_FILE"
+          else
+            echo "DEEPGRAM_API_KEY=" > "$XCCONFIG_FILE"
+            echo "SONIOX_API_KEY=" >> "$XCCONFIG_FILE"
           fi
-

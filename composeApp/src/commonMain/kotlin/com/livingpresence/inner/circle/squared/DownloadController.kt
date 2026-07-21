@@ -2,6 +2,7 @@ package com.livingpresence.inner.circle.squared
 
 import androidx.compose.runtime.Composable
 import com.livingpresence.mediakit.EventInfo
+import com.livingpresence.mediakit.RenditionTier
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -17,6 +18,14 @@ enum class DownloadStatus { QUEUED, DOWNLOADING, COMPLETED, FAILED, REMOVING, NO
 
 /** User-selectable download quality. ~220 MB/h at 360p vs ~450 MB/h at 720p. */
 enum class DownloadQuality { P720, P360, P160, AUDIO }
+
+/** Maps a user-facing [DownloadQuality] to the mediakit [RenditionTier]. */
+fun DownloadQuality.toRenditionTier(): RenditionTier = when (this) {
+    DownloadQuality.P720 -> RenditionTier.P720
+    DownloadQuality.P360 -> RenditionTier.P360
+    DownloadQuality.P160 -> RenditionTier.P160
+    DownloadQuality.AUDIO -> RenditionTier.AUDIO
+}
 
 /**
  * Platform abstraction over offline downloads. Android backs this with the

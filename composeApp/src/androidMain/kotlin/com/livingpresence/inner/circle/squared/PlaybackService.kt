@@ -74,7 +74,7 @@ class PlaybackService : MediaSessionService() {
             // audio to the selected cloud ASR provider (Deepgram/Soniox); it's
             // started/stopped lazily from the player screen's CC toggle (not here).
             .setRenderersFactory(
-                TranscriptionRenderersFactory(this, CaptionAudioRouter.get()),
+                TranscriptionRenderersFactory(this, CaptionAudioRouter.get().asPcmTapSink()),
             )
             .setTrackSelector(trackSelector)
             .setLoadControl(MemoryGovernor.adaptiveLoadControl(this))

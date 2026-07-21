@@ -343,93 +343,29 @@ private fun ExoPlayerScreen(
                     )
                 }
 
-                // Top bar: close, resize toggle, quality, stats — auto-hides.
                 AnimatedVisibility(
                     visible = showVideoControls,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Spacer(modifier = Modifier.weight(1f))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            QualityMenu(
-                                renditions = renditions,
-                                onSetAuto = {
-                                    player.trackSelectionParameters = player.trackSelectionParameters
-                                        .buildUpon()
-                                        .clearVideoSizeConstraints()
-                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                        .build()
-                                },
-                                onPinToRendition = { rendition ->
-                                    player.trackSelectionParameters = player.trackSelectionParameters
-                                        .buildUpon()
-                                        .setMinVideoSize(rendition.width, rendition.height)
-                                        .setMaxVideoSize(rendition.width, rendition.height)
-                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
-                                        .build()
-                                },
-                                onDisableVideo = {
-                                    player.trackSelectionParameters = player.trackSelectionParameters
-                                        .buildUpon()
-                                        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                                        .build()
-                                }
-                            )
-                            TextButton(onClick = { showStats = !showStats }) {
-                                Text("Stats", color = Color.White)
-                            }
-                            // Live captions: provider switch (shown when on) + CC toggle.
-                            if (captionController.enabled) {
-                                CaptionProviderButton(controller = captionController)
-                            }
-                            CaptionToggleButton(controller = captionController)
-                        }
-                    }
-                }
-
-                // Bottom controls: scrub-preview bubble + timeline + transport.
-                AnimatedVisibility(
-                    visible = showVideoControls,
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier.fillMaxSize(),
                     enter = fadeIn(),
                     exit = fadeOut(),
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .onGloballyPositioned { coords ->
                                 controlsBoxRootX = coords.positionInRoot().x
                                 controlsBoxWidthPx = coords.size.width.toFloat()
-                            },
+                            }
                     ) {
-                        // Floating preview bubble above the seekbar thumb. Shown
-                        // only while actively scrubbing; the bubble centers on the
-                        // thumb's measured x position.
-                        if (isScrubbing && state.duration > 0L) {
-                            ScrubPreviewBubble(
-                                bitmap = scrubBitmap,
-                                positionLabel = formatPlaybackTime(scrubTargetPositionMs),
-                                thumbCenterRootX = thumbCenterRootX,
-                                boxRootX = controlsBoxRootX,
-                                boxWidthPx = controlsBoxWidthPx,
-                            )
-                        }
-                        PlayerControlPanel(
-                            player = player,
-                            state = state,
+                        PlayerControlsOverlay(
+                            modifier = Modifier.fillMaxSize(),
+                            isPlaying = state.isPlaying,
+                            durationMs = state.duration,
+                            positionMs = state.currentPosition,
+                            isLive = state.isLive,
+                            isSeekable = state.isSeekable,
                             isScrubbing = isScrubbing,
                             sliderFraction = sliderFraction,
-                            canJumpToLive = canJumpToLive,
-                            onThumbCenterXChanged = { thumbCenterRootX = it },
                             onSliderValueChange = {
                                 isScrubbing = true
                                 sliderFraction = it
@@ -444,6 +380,9 @@ private fun ExoPlayerScreen(
                                 }
                                 isScrubbing = false
                             },
+                            onPlayPauseToggle = {
+                                if (state.isPlaying) player.pause() else player.play()
+                            },
                             onJumpToLive = {
                                 player.seekToDefaultPosition()
                                 player.play()
@@ -451,11 +390,53 @@ private fun ExoPlayerScreen(
                                 sliderFraction = 1f
                                 isScrubbing = false
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.Black.copy(alpha = 0.55f))
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            onClose = onClose,
+                            onThumbCenterXChanged = { thumbCenterRootX = it },
+                            topRightControls = {
+                                PlayerTopRightControls(
+                                    captionController = captionController,
+                                    onToggleStats = { showStats = !showStats },
+                                    qualityMenu = {
+                                        QualityMenu(
+                                            renditions = renditions,
+                                            onSetAuto = {
+                                                player.trackSelectionParameters = player.trackSelectionParameters
+                                                    .buildUpon()
+                                                    .clearVideoSizeConstraints()
+                                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                                    .build()
+                                            },
+                                            onPinToRendition = { rendition ->
+                                                player.trackSelectionParameters = player.trackSelectionParameters
+                                                    .buildUpon()
+                                                    .setMinVideoSize(rendition.width, rendition.height)
+                                                    .setMaxVideoSize(rendition.width, rendition.height)
+                                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, false)
+                                                    .build()
+                                            },
+                                            onDisableVideo = {
+                                                player.trackSelectionParameters = player.trackSelectionParameters
+                                                    .buildUpon()
+                                                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
+                                                    .build()
+                                            }
+                                        )
+                                    },
+                                )
+                            }
                         )
+                        
+                        if (isScrubbing && state.duration > 0L) {
+                            Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+                                ScrubPreviewBubble(
+                                    bitmap = scrubBitmap,
+                                    positionLabel = formatPlaybackTime(scrubTargetPositionMs),
+                                    thumbCenterRootX = thumbCenterRootX,
+                                    boxRootX = controlsBoxRootX,
+                                    boxWidthPx = controlsBoxWidthPx,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -576,95 +557,7 @@ private fun PlayerLoadingState(onClose: () -> Unit) {
     }
 }
 
-@Composable
-private fun PlayerControlPanel(
-    player: Player,
-    state: PlayerState,
-    isScrubbing: Boolean,
-    sliderFraction: Float,
-    canJumpToLive: Boolean,
-    onThumbCenterXChanged: (Float) -> Unit,
-    onSliderValueChange: (Float) -> Unit,
-    onSliderValueChangeFinished: () -> Unit,
-    onJumpToLive: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val displayedPosition = if (isScrubbing && state.duration > 0L) {
-        (state.duration * sliderFraction).roundToLong()
-    } else {
-        state.currentPosition
-    }
-    // Hoisted out of the onGloballyPositioned lambda below: reading a
-    // CompositionLocal is a @Composable call, so it can't happen in that callback.
-    val density = LocalDensity.current
-    val thumbRadiusPx = with(density) { SliderThumbRadius.toPx() }
 
-    Column(modifier = modifier) {
-        if (state.isSeekable && state.duration > 0L) {
-            Slider(
-                value = sliderFraction.coerceIn(0f, 1f),
-                onValueChange = onSliderValueChange,
-                onValueChangeFinished = onSliderValueChangeFinished,
-                valueRange = 0f..1f,
-                modifier = Modifier.onGloballyPositioned { coords ->
-                    // Map the slider fraction to the thumb's center x in root
-                    // coordinates. Material3's Slider insets the active track by
-                    // the thumb radius on each side; the thumb center travels
-                    // that inner span. Accurate enough for bubble tracking, and
-                    // the bubble's own clamp keeps it on screen regardless.
-                    val w = coords.size.width
-                    val rootX = coords.positionInRoot().x
-                    val innerStart = rootX + thumbRadiusPx
-                    val innerSpan = (w - 2 * thumbRadiusPx).coerceAtLeast(0f)
-                    onThumbCenterXChanged(innerStart + sliderFraction * innerSpan)
-                },
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = formatPlaybackTime(displayedPosition),
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                text = when {
-                    state.isSeekable && state.duration > 0L -> formatPlaybackTime(state.duration)
-                    state.isLive -> "Live"
-                    else -> "—"
-                },
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PlayPauseButton(player = player, modifier = Modifier.size(64.dp))
-            Button(
-                onClick = { if (state.isPlaying) player.pause() else player.play() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Black.copy(alpha = 0.45f)),
-            ) {
-                Text(if (state.isPlaying) "Pause" else "Unpause")
-            }
-            if (state.isLive && state.isSeekable && state.duration > 0L) {
-                FilledTonalButton(
-                    onClick = onJumpToLive,
-                    enabled = canJumpToLive,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.22f),
-                    ),
-                ) {
-                    Text("Jump to live")
-                }
-            }
-        }
-    }
-}
 
 
 
@@ -761,16 +654,3 @@ private fun nextPortraitResizeMode(mode: ResizeMode): ResizeMode = when (mode) {
 }
 
 
-private fun parseEventNumber(url: String): Int? =
-    Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)?.toIntOrNull()
-
-private fun formatPlaybackTime(timeMs: Long): String {
-    val totalSeconds = timeMs.coerceAtLeast(0L) / 1000L
-    val hours = totalSeconds / 3600L
-    val minutes = (totalSeconds % 3600L) / 60L
-    val seconds = totalSeconds % 60L
-    return if (hours > 0L) "$hours:${pad2(minutes)}:${pad2(seconds)}"
-    else "$minutes:${pad2(seconds)}"
-}
-
-private fun pad2(value: Long): String = if (value < 10L) "0$value" else value.toString()

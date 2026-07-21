@@ -30,13 +30,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.paint
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import org.jetbrains.compose.resources.painterResource
-import com.livingpresence.inner.circle.squared.generated.resources.Res
-import com.livingpresence.inner.circle.squared.generated.resources.background_image
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import cnames.supported.AVPlayerBridge
@@ -74,16 +68,7 @@ import kotlin.math.roundToLong
  */
 actual fun createHttpClient(): HttpClient = HttpClient(Darwin)
 
-
-actual fun onEventClick(eventNumber: Int, defaultAction: () -> Unit) {
-    defaultAction()
-}
-
-@Composable
-actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
-    painter = painterResource(Res.drawable.background_image),
-    contentScale = ContentScale.Crop,
-)
+// onEventClick / loginBackgroundModifier are shared with web in nonAndroidMain.
 
 @Composable
 actual fun PlatformPlayerScreen(
@@ -110,193 +95,154 @@ actual fun PlatformPlayerScreen(
     var showStats by remember(url) { mutableStateOf(false) }
     var renditions by remember(url) { mutableStateOf<List<com.livingpresence.mediakit.ProbedRendition>?>(null) }
 
-    LaunchedEffect(url) {
-        val config = com.livingpresence.mediakit.MediaKitConfig.Default
-        val eventNumber = Regex("events/(\\d+)/").find(url)?.groupValues?.get(1)?.toIntOrNull()
-        if (eventNumber != null) {
-            renditions = com.livingpresence.mediakit.MediaKit.probeLadder(config, eventNumber)
-        }
-    }
-
-    DisposableEffect(url) {
-        bridge.play()
-        bridge.installAudioTapWithCallback { pcmData, numFrames, numChannels, sampleRate ->
-            CaptionAudioRouter.get().onPcm(pcmData, numFrames, numChannels, sampleRate)
-        }
-
-        // ~4 Hz position + status pump. `queue = null` → main run loop, safe to
-        // touch Compose state directly from the block.
-        val observer = bridge.addPeriodicTimeObserverForInterval(
-            interval = CMTimeMakeWithSeconds(0.25, 600),
-            queue = null,
-        ) { time: CValue<CMTime> ->
-            val seconds = CMTimeGetSeconds(time)
-            if (!seconds.isNaN()) positionMs = (seconds * 1000.0).roundToLong()
-            val rate = bridge.rate()
-            isPlaying = rate > 0f
-            val durSeconds = CMTimeGetSeconds(bridge.duration())
-            if (!durSeconds.isNaN() && durSeconds > 0.0) {
-                durationMs = (durSeconds * 1000.0).roundToLong()
-                isReady = true
+        LaunchedEffect(url) {
+            val eventNumber = parseEventNumber(url)
+            if (eventNumber != null) {
+                val ladderResolver = com.livingpresence.mediakit.LadderResolver(createHttpClient(), com.livingpresence.mediakit.MediaKitConfig.Default)
+                val ladder = try { ladderResolver.resolve(eventNumber) } catch (e: Exception) { null }
+                renditions = ladder?.renditions
             }
         }
-
-        onDispose {
-            bridge.removeTimeObserver(observer)
-            bridge.replaceCurrentItemWithItem(null)
+    
+        DisposableEffect(url) {
+            bridge.play()
+            bridge.installAudioTapWithCallback { pcmData, numFrames, numChannels, sampleRate ->
+                CaptionAudioRouter.get().onPcm(pcmData, numFrames, numChannels, sampleRate)
+            }
+    
+            // ~4 Hz position + status pump. `queue = null` → main run loop, safe to
+            // touch Compose state directly from the block.
+            val observer = bridge.addPeriodicTimeObserverForInterval(
+                interval = CMTimeMakeWithSeconds(0.25, 600),
+                queue = null,
+            ) { time: CValue<CMTime> ->
+                val seconds = CMTimeGetSeconds(time)
+                if (!seconds.isNaN()) positionMs = (seconds * 1000.0).roundToLong()
+                val rate = bridge.rate()
+                isPlaying = rate > 0f
+                val durSeconds = CMTimeGetSeconds(bridge.duration())
+                if (!durSeconds.isNaN() && durSeconds > 0.0) {
+                    durationMs = (durSeconds * 1000.0).roundToLong()
+                    isReady = true
+                }
+            }
+    
+            onDispose {
+                bridge.removeTimeObserver(observer)
+                bridge.replaceCurrentItemWithItem(null)
+            }
         }
-    }
-
-    val pipController = rememberPipController(playerLayer)
-
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            // AVPlayerLayer interop: a plain UIView whose layer hosts the
-            // bridge's player sublayer (added + sized in `update`).
-            // videoGravity = aspect-fit mirrors the Android default. The bridge's
-            // layoutInSuperview lowers the host view's layer zPosition so the
-            // native view renders *below* the Compose surface — without that, CMP's
-            // UIKitView places the video above the control overlays (the known
-            // z-order sharp edge), making them untappable.
-            UIKitView(
-                factory = { bridge.createPlayerView()!! },
+    
+        val pipController = rememberPipController(playerLayer)
+    
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            BoxWithConstraints(
                 modifier = Modifier.fillMaxSize(),
-                onRelease = { bridge.replaceCurrentItemWithItem(null) },
-            )
-
-            if (!isReady) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = Color.White,
-                )
-            }
-        }
-
-        // Tap toggles play/pause. A plain Box (no background) sits above the
-        // video surface for input while letting the video show through; the
-        // control overlays are children so they receive their own taps.
-        val tapSource = remember { MutableInteractionSource() }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(interactionSource = tapSource, indication = null) {
-                    if (isPlaying) bridge.pause() else bridge.play()
-                },
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                contentAlignment = Alignment.Center,
             ) {
+                // AVPlayerLayer interop: a plain UIView whose layer hosts the
+                // bridge's player sublayer (added + sized in `update`).
+                // videoGravity = aspect-fit mirrors the Android default. The bridge's
+                // layoutInSuperview lowers the host view's layer zPosition so the
+                // native view renders *below* the Compose surface — without that, CMP's
+                // UIKitView places the video above the control overlays (the known
+                // z-order sharp edge), making them untappable.
+                UIKitView(
+                    factory = { bridge.createPlayerView()!! },
+                    modifier = Modifier.fillMaxSize(),
+                    onRelease = { bridge.replaceCurrentItemWithItem(null) },
+                )
+    
+                if (!isReady) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = Color.White,
+                    )
+                }
+            }
+    
+            // Tap toggles play/pause. A plain Box (no background) sits above the
+            // video surface for input while letting the video show through; the
+            // control overlays are children so they receive their own taps.
+            val tapSource = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(interactionSource = tapSource, indication = null) {
+                        if (isPlaying) bridge.pause() else bridge.play()
+                    }
+            ) {
+                PlayerControlsOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    isPlaying = isPlaying,
+                    durationMs = durationMs,
+                    positionMs = positionMs,
+                    isLive = durationMs == 0L, // approximate
+                    isSeekable = durationMs > 0L,
+                    isScrubbing = isScrubbing,
+                    sliderFraction = scrubFraction,
+                    onSliderValueChange = {
+                        isScrubbing = true
+                        scrubFraction = it
+                    },
+                    onSliderValueChangeFinished = {
+                        val target = (durationMs * scrubFraction)
+                            .toLong()
+                            .coerceIn(0L, durationMs)
+                        bridge.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
+                        isScrubbing = false
+                    },
+                    onPlayPauseToggle = {
+                        if (isPlaying) bridge.pause() else bridge.play()
+                    },
+                    onJumpToLive = {
+                        bridge.seekToTime(CMTimeMakeWithSeconds(durationMs / 1000.0, 600))
+                        bridge.play()
+                    },
+                    onClose = onClose,
+                    topRightControls = {
+                        PlayerTopRightControls(
+                            captionController = captionController,
+                            onToggleStats = { showStats = !showStats },
+                            qualityMenu = {
+                                QualityMenu(
+                                    renditions = renditions,
+                                    onSetAuto = {},
+                                    onPinToRendition = {},
+                                    onDisableVideo = {}
+                                )
+                            },
+                            trailingControls = {
+                                if (pipController != null) {
+                                    TextButton(onClick = {
+                                        if (pipController.isPictureInPictureActive()) {
+                                            pipController.stopPictureInPicture()
+                                        } else {
+                                            pipController.startPictureInPicture()
+                                        }
+                                    }) { Text("PiP", color = Color.White) }
+                                }
+                            },
+                        )
+                    }
+                )
+
+                if (showStats) {
+                    StatsOverlay(
+                        currentHeight = null,
+                        bufferedAfterMs = 0L,
+                        renditions = renditions,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(top = 56.dp, start = 8.dp),
+                    )
+                }
+
                 CaptionOverlay(
                     captions = captionController.captions,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 120.dp)
                 )
-
-                if (durationMs > 0L) {
-                    val fraction = if (isScrubbing) {
-                        scrubFraction
-                    } else {
-                        (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-                    }
-                    Slider(
-                        value = fraction,
-                        onValueChange = {
-                            isScrubbing = true
-                            scrubFraction = it
-                        },
-                        onValueChangeFinished = {
-                            val target = (durationMs * scrubFraction)
-                                .toLong()
-                                .coerceIn(0L, durationMs)
-                            bridge.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
-                            isScrubbing = false
-                        },
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = formatPlaybackTime(positionMs),
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    TextButton(onClick = { if (isPlaying) bridge.pause() else bridge.play() }) {
-                        Text(if (isPlaying) "Pause" else "Play", color = Color.White)
-                    }
-                    Text(
-                        text = if (durationMs > 0L) formatPlaybackTime(durationMs) else "Live",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
-                    QualityMenu(
-                        renditions = renditions,
-                        onSetAuto = {
-                            bridge.setPreferredPeakBitRate(0.0) // 0 means no limit -> auto
-                            bridge.setVideoEnabled(true)
-                        },
-                        onPinToRendition = { rendition ->
-                            bridge.setPreferredPeakBitRate(rendition.bandwidthBitsPerSecond.toDouble())
-                            bridge.setVideoEnabled(true)
-                        },
-                        onDisableVideo = {
-                            bridge.setVideoEnabled(false)
-                        }
-                    )
-                    TextButton(onClick = { showStats = !showStats }) {
-                        Text("Stats", color = Color.White)
-                    }
-                    if (captionController.enabled) {
-                        CaptionProviderButton(controller = captionController)
-                    }
-                    CaptionToggleButton(controller = captionController)
-                }
             }
-        }
-
-        if (showStats) {
-            StatsOverlay(
-                currentHeight = bridge.videoSize().useContents { height.toInt() }.takeIf { it > 0 },
-                bufferedAfterMs = (CMTimeGetSeconds(bridge.bufferedDuration()) * 1000.0).roundToLong() - positionMs,
-                renditions = renditions,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 56.dp, start = 8.dp),
-            )
-        }
-
-        // Top bar: Close & PiP (when supported).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.55f))
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = onClose) { 
-                Text("Close", color = Color.White) 
-            }
-            if (pipController != null) {
-                TextButton(onClick = {
-                    if (pipController.isPictureInPictureActive()) {
-                        pipController.stopPictureInPicture()
-                    } else {
-                        pipController.startPictureInPicture()
-                    }
-                }) { Text("PiP", color = Color.White) }
-            }
-        }
     }
 }
 
@@ -329,16 +275,7 @@ private fun configureBackgroundAudio() {
     AVPlayerBridge.configurePlaybackSession()
 }
 
-private fun formatPlaybackTime(timeMs: Long): String {
-    val totalSeconds = timeMs.coerceAtLeast(0L) / 1000L
-    val hours = totalSeconds / 3600L
-    val minutes = (totalSeconds % 3600L) / 60L
-    val seconds = totalSeconds % 60L
-    return if (hours > 0L) "$hours:${pad2(minutes)}:${pad2(seconds)}"
-    else "$minutes:${pad2(seconds)}"
-}
 
-private fun pad2(value: Long): String = if (value < 10L) "0$value" else value.toString()
 
 @Composable
 actual fun LiveEventThumbnail(

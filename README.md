@@ -38,6 +38,23 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
   hardware-accelerated thumbnail extraction on iOS via `AVAssetImageGenerator`, and robust 
   native iOS background HLS downloading using `AVAssetDownloadURLSession`.
 
+## Feature Matrix
+
+| Feature | Android | iOS | Web (Wasm) |
+| :--- | :---: | :---: | :---: |
+| **Live STT Captions** (Deepgram/Soniox WebSockets) | ✅ | ✅ | ✅ |
+| **ABR Ladder Synthesis** (from sibling renditions) | ✅ | ✅ | ✅ |
+| **Viewport-Aware ABR** (auto-caps to screen size) | ✅ | ✅ | ✅ |
+| **Manual Quality Override** (Auto, 720p, audio, etc) | ✅ | ✅ | ✅ |
+| **Scrub Frame Previews** (floating thumbnail) | ✅ | ✅ | ✅ |
+| **Live Event DVR** (drifting seekbar & jump-to-live) | ✅ | ✅ | ✅ |
+| **Pillarboxing & Orientation Handling** | ✅ | ✅ | ✅ |
+| **Background Audio** (auto-shifts to audio-only tier) | ✅ | ✅ | ❌ |
+| **Picture-in-Picture (PiP)** | ✅ | ✅ | ❌ |
+| **Offline HLS Downloads** | ✅ | ✅ | ❌ |
+| **Preview Disk Caching** (persisted between sessions) | ✅ | ❌ | ❌ |
+| **Memory Governor** (OOM prevention during PiP/bg) | ✅ | ❌ | ❌ |
+
 ## Architecture
 
 ```
@@ -145,3 +162,24 @@ binary-breaking changes fail CI. Dokka API docs are published to GitHub Pages on
 ## Configuration
 
 Transcription API keys (for Deepgram and Soniox) are read from `secrets.properties` in the project root. See `secrets.properties.example` for details.
+
+## Manual Test Scenarios
+
+If you are verifying feature parity or evaluating a PR, run through these core scenarios:
+
+1. **Live Captions:** Enable CC from the player overlay and verify real-time text flows in seamlessly across platforms.
+2. **ABR Ladder & Engine Playback:**
+   - **ABR Synthesis:** The AI synthesized a ladder client-side from 4 sibling renditions. Use a network throttler to ensure the player gracefully auto-switches between 720p, 360p, 160p, and audio-only tiers. Check the debug stats overlay to confirm.
+   - **Viewport-Aware ABR (FU-5):** Verify that playing on a small device doesn't over-download the 720p stream if 360p fits the physical display perfectly.
+   - **Quality Menu:** Test manual override controls (Auto, 720p, 360p, 160p, Audio) to make sure they stick.
+   - **Orientation & Layout:** Test a 9:16 vertical video. Ensure it pillarboxes correctly in portrait mode rather than cropping awkwardly. Verify that sensor-based rotate-to-fullscreen works for landscape videos.
+3. **Scrubbing & Frame Previews:**
+   - **Scrub Previews:** Drag the seekbar and confirm a floating thumbnail bubble appears. The `PreviewFrameEngine` relies on a secondary muted player hitting the `_160p` stream. Ensure ~2s granularity.
+   - **Disk Caching (FU-2):** Scrub a video, force close the app completely, reopen, and scrub again. It should be instant because of the disk cache.
+   - **Graceful Fallback:** Scrub rapidly. If frames aren't decoded fast enough, verify it falls back to a time-only bubble.
+4. **Background, PiP, & Memory Governor (Mobile Only):**
+   - **Background Audio:** Start playback, and put the app in the background (no PiP). Ensure playback shifts down to the audio-only tier (~51kbps) to save data, and continues with a `MediaSession` notification.
+   - **Picture-in-Picture (PiP):** Enable PiP, minimize the app. Verify the PiP window shows with the correct aspect ratio (especially crucial for vertical videos) and player controls collapse properly.
+   - **Memory Governor:** Simulate Android memory pressure (`adb shell am send-trim-memory <pid> TRIM_MEMORY_CRITICAL`). Ensure background resources like the `PreviewFrameEngine` and thumbnail LRU are immediately released and the player doesn't OOM.
+5. **Live Event Verification:** Verify the jump-to-live button works, seeking is restricted to the DVR window, and that the UI seek slider doesn't infinitely "drift" forward.
+6. **Offline Downloads:** Turn off all networking. Start the app and play a downloaded event to verify it properly resolves via the local cache.
