@@ -31,6 +31,10 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import cnames.supported.AVPlayerBridge
@@ -133,6 +137,28 @@ actual fun PlatformPlayerScreen(
             }
         }
     
+    val engine = remember { PreviewFrameEngine() }
+    var previewBitmap by remember(url) { mutableStateOf<ImageBitmap?>(null) }
+    val eventNumber = remember(url) { parseEventNumber(url) }
+    
+    val scrubTargetPositionMs = if (isScrubbing && durationMs > 0L) {
+        (durationMs * scrubFraction).roundToLong().coerceIn(0L, durationMs)
+    } else 0L
+    
+    LaunchedEffect(isScrubbing, scrubTargetPositionMs) {
+        if (!isScrubbing || durationMs <= 0L || eventNumber == null) {
+            previewBitmap = null
+            return@LaunchedEffect
+        }
+        
+        // Quantize to nearest 2s for better cache hits
+        val requestedPosition = (scrubTargetPositionMs / 2000L) * 2000L
+        val frame = engine.getFrame(eventNumber, requestedPosition)
+        if (isScrubbing && scrubTargetPositionMs == (durationMs * scrubFraction).roundToLong().coerceIn(0L, durationMs)) {
+            previewBitmap = frame
+        }
+    }
+    
         val pipController = rememberPipController(playerLayer)
     
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -165,6 +191,10 @@ actual fun PlatformPlayerScreen(
             // video surface for input while letting the video show through; the
             // control overlays are children so they receive their own taps.
             val tapSource = remember { MutableInteractionSource() }
+            var thumbCenterRootX by remember { mutableStateOf(0f) }
+            var controlsBoxRootX by remember { mutableStateOf(0f) }
+            var controlsBoxWidthPx by remember { mutableStateOf(0f) }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -173,7 +203,11 @@ actual fun PlatformPlayerScreen(
                     }
             ) {
                 PlayerControlsOverlay(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                        val bounds = it.boundsInWindow()
+                        controlsBoxRootX = bounds.left
+                        controlsBoxWidthPx = bounds.width
+                    },
                     isPlaying = isPlaying,
                     durationMs = durationMs,
                     positionMs = positionMs,
@@ -199,6 +233,7 @@ actual fun PlatformPlayerScreen(
                         bridge.seekToTime(CMTimeMakeWithSeconds(durationMs / 1000.0, 600))
                         bridge.play()
                     },
+                    onThumbCenterXChanged = { thumbCenterRootX = it },
                     onClose = onClose,
                     topRightControls = {
                         PlayerTopRightControls(
@@ -226,6 +261,18 @@ actual fun PlatformPlayerScreen(
                         )
                     }
                 )
+
+                if (isScrubbing && durationMs > 0L) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+                        ScrubPreviewBubble(
+                            bitmap = previewBitmap,
+                            positionLabel = formatPlaybackTime(scrubTargetPositionMs),
+                            thumbCenterRootX = thumbCenterRootX,
+                            boxRootX = controlsBoxRootX,
+                            boxWidthPx = controlsBoxWidthPx,
+                        )
+                    }
+                }
 
                 if (showStats) {
                     StatsOverlay(
@@ -283,29 +330,21 @@ actual fun LiveEventThumbnail(
     contentDescription: String?,
     modifier: Modifier,
 ) {
-    val config = com.livingpresence.mediakit.MediaKitConfig.Default
-    val url = config.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
+    val engine = remember { PreviewFrameEngine() }
+    var bitmap by remember(eventNumber) { mutableStateOf<ImageBitmap?>(null) }
     
-    val nsUrl = remember(url) { NSURL.URLWithString(url) ?: NSURL.URLWithString("")!! }
-    val bridge = remember(url) {
-        AVPlayerBridge(uRL = nsUrl).apply {
-            setMuted(true)
-            play()
-        }
+    LaunchedEffect(eventNumber) {
+        bitmap = engine.getFrame(eventNumber, 0L)
     }
 
-    DisposableEffect(url) {
-        onDispose {
-            bridge.replaceCurrentItemWithItem(null)
-        }
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(
+            bitmap = bitmap!!,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(modifier = modifier.background(Color.DarkGray))
     }
-
-    UIKitView(
-        factory = { 
-            bridge.createPlayerView()!!.apply {
-                clipsToBounds = true
-            }
-        },
-        modifier = modifier
-    )
 }
