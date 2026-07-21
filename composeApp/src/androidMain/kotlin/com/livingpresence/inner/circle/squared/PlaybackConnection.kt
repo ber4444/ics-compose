@@ -93,6 +93,6 @@ private fun mediaItem(url: String, mimeType: String?, title: String): MediaItem 
 }
 
 private fun titleFor(url: String): String {
-    val eventNumber = Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)
+    val eventNumber = parseEventNumber(url)
     return if (eventNumber != null) "Event $eventNumber" else "Inner Circle Squared"
 }

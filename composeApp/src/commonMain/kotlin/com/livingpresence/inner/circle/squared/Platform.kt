@@ -49,6 +49,14 @@ fun getUrl(eventNumber: Int): String =
     MediaKitConfig.Default.eventUrl(eventNumber)
 
 /**
+ * Extracts the event number from a stream/rendition [url], or null if none is
+ * present. Matches the `eventNNN` segment of the mediakit URL scheme, so it works
+ * for master, rendition and segment URLs alike across every platform.
+ */
+fun parseEventNumber(url: String): Int? =
+    Regex("""event(\d+)""").find(url)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+/**
  * Background for the login screen. Android renders the `background_image`
  * resource (works there); wasmJs uses a gradient because decoding the raster
  * JPEG via `Image(painterResource(...))` throws an unrecoverable exception under

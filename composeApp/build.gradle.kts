@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import java.util.Properties
 
 plugins {
     id("com.android.kotlin.multiplatform.library")
@@ -149,6 +150,23 @@ kotlin {
         binaries.executable()
     }
 
+    // Intermediate source set shared by every non-Android target (iOS + web). Both
+    // lack ExoPlayer / a native download center and share several actuals (event-click,
+    // login background) plus UI seams, so they hang off a common parent rather than
+    // copy-pasting per platform. This is added by *extending* the default hierarchy
+    // template (not manual dependsOn edges) so the template still wires iosMain to its
+    // iosArm64/iosSimulatorArm64 leaf compilations.
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
+    applyDefaultHierarchyTemplate {
+        common {
+            group("nonAndroid") {
+                withWasmJs()
+                withIosArm64()
+                withIosSimulatorArm64()
+            }
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -186,6 +204,11 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
+        }
         // Robolectric unit tests for Android player/resize logic.
         val androidHostTest by getting {
             dependencies {
@@ -198,6 +221,45 @@ kotlin {
             }
         }
     }
+}
+
+// Web (wasmJs) transcription key provisioning — mirror of the Android BuildConfig
+// approach (androidApp/build.gradle.kts): read the gitignored secrets.properties and
+// generate a Kotlin constants file into the wasmJs source set.
+// NOTE: these keys are embedded in the web bundle and are extractable by anyone who
+// loads the page — a dev/portfolio convenience, not production key handling. For
+// production, proxy the websocket through a backend that holds the key.
+val transcriptionSecrets = Properties().apply {
+    val f = rootProject.file("secrets.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val generateWebTranscriptionKeys by tasks.registering {
+    val outputDir = layout.buildDirectory.dir("generated/transcriptionKeys/wasmJsMain")
+    outputs.dir(outputDir)
+    val deepgram = transcriptionSecrets.getProperty("DEEPGRAM_API_KEY", "")
+    val soniox = transcriptionSecrets.getProperty("SONIOX_API_KEY", "")
+    // Track key values so the task re-runs when they change.
+    inputs.property("deepgram", deepgram)
+    inputs.property("soniox", soniox)
+    doLast {
+        fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\${'$'}")
+        val dir = outputDir.get().asFile
+        dir.mkdirs()
+        dir.resolve("TranscriptionKeys.kt").writeText(
+            """
+            package com.livingpresence.inner.circle.squared
+
+            // Generated from secrets.properties at build time — do not edit or commit.
+            internal object TranscriptionKeys {
+                const val DEEPGRAM_API_KEY = "${esc(deepgram)}"
+                const val SONIOX_API_KEY = "${esc(soniox)}"
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+kotlin.sourceSets.named("wasmJsMain") {
+    kotlin.srcDir(generateWebTranscriptionKeys)
 }
 
 compose.resources {

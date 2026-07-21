@@ -13,7 +13,6 @@ import platform.CoreMedia.CMTimeRange
 import platform.Foundation.*
 import platform.darwin.NSObject
 import com.livingpresence.mediakit.MediaKitConfig
-import com.livingpresence.mediakit.RenditionTier
 import androidx.compose.runtime.remember
 
 @OptIn(ExperimentalForeignApi::class)
@@ -65,13 +64,7 @@ private class IOSDownloadController : DownloadController {
     }
 
     override fun enqueue(event: EventInfo, tier: DownloadQuality) {
-        val tierEnum = when(tier) {
-            DownloadQuality.P720 -> RenditionTier.P720
-            DownloadQuality.P360 -> RenditionTier.P360
-            DownloadQuality.P160 -> RenditionTier.P160
-            DownloadQuality.AUDIO -> RenditionTier.AUDIO
-        }
-        val url = config.renditionUrl(event.eventNumber, tierEnum)
+        val url = config.renditionUrl(event.eventNumber, tier.toRenditionTier())
         val nsUrl = NSURL.URLWithString(url) ?: return
         val asset = AVURLAsset.assetWithURL(nsUrl)
         

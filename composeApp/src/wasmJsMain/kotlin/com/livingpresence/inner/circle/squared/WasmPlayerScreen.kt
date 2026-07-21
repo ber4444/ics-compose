@@ -10,7 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.livingpresence.mediakit.LadderResolver
 import com.livingpresence.mediakit.MediaKitConfig
@@ -30,25 +30,25 @@ function createBlobUrl(text, mimeType) {
 internal external fun createBlobUrl(text: String, mimeType: String): String
 
 @JsFun("""
-function attachHlsWithAbr(videoElement, url) {
+function attachHlsWithAbr(videoElement, hlsUrl, nativeUrl) {
     if (window.Hls && window.Hls.isSupported()) {
         var hls = new window.Hls({
             capLevelToPlayerSize: true
         });
-        hls.loadSource(url);
+        hls.loadSource(hlsUrl);
         hls.attachMedia(videoElement);
         hls.on(window.Hls.Events.MANIFEST_PARSED, function() {
             videoElement.play().catch(function(){});
         });
         return hls;
     } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-        videoElement.src = url;
+        videoElement.src = nativeUrl;
         videoElement.play().catch(function(){});
     }
     return null;
 }
 """)
-internal external fun attachHlsWithAbr(videoElement: kotlin.js.JsAny, url: String): kotlin.js.JsAny?
+internal external fun attachHlsWithAbr(videoElement: kotlin.js.JsAny, hlsUrl: String, nativeUrl: String): kotlin.js.JsAny?
 
 @JsFun("""
 function setupVideoListeners(video, onTimeUpdate, onPlay, onPause) {
@@ -151,11 +151,6 @@ function getBufferedAfter(video) {
 """)
 internal external fun getBufferedAfter(video: kotlin.js.JsAny): Double
 
-private fun parseEventNumber(url: String): Int? {
-    val regex = "event(\\d+)".toRegex()
-    return regex.find(url)?.groupValues?.get(1)?.toIntOrNull()
-}
-
 @Composable
 fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
     val eventNumber = parseEventNumber(url)
@@ -174,6 +169,16 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
     var showStats by remember { mutableStateOf(false) }
     val captionController = rememberCaptionController()
 
+    // The Compose surface on web is a single opaque skiko canvas, so (unlike the
+    // native players) controls can't be drawn translucently over the HTML <video>.
+    // Instead we paint the canvas black and inset the video into the band between
+    // the top bar and the bottom controls, measured live so the bars stay tappable.
+    val density = LocalDensity.current.density
+    var topBarBottomPx by remember { mutableStateOf(0f) }
+    var bottomBarTopPx by remember { mutableStateOf(0f) }
+    // Black strip (CSS px) reserved above the controls for captions when CC is on.
+    val captionStripCss = 72.0
+
     // Scrub Preview State
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubFraction by remember { mutableStateOf(0f) }
@@ -183,20 +188,18 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
         initPreviewEngine()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-        
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+
         DisposableEffect(Unit) {
-            val composeCanvas = document.getElementsByTagName("canvas").item(0) as? org.w3c.dom.HTMLElement
-            if (composeCanvas != null) {
-                composeCanvas.style.apply { setProperty("z-index", "1") }
-            }
-            
             document.body?.style?.apply {
                 setProperty("background", "black")
             }
-            
+
             val video = document.createElement("video") as HTMLVideoElement
             video.style.apply {
+                // The <video> paints above the Compose canvas (DOM order), so it
+                // must be inset to the middle band; top/height are set live from
+                // the measured control-bar positions (see LaunchedEffect below).
                 setProperty("position", "absolute")
                 setProperty("left", "0px")
                 setProperty("top", "0px")
@@ -226,23 +229,44 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
                 video.remove()
             }
         }
-        
+
+        // Inset the <video> to the band between the top bar and bottom controls so
+        // the Compose controls (which render above the black canvas, not over the
+        // video) stay visible and tappable. Captions can't overlay the opaque canvas
+        // either, so when CC is on we shrink the band by [captionStripCss] to leave a
+        // black strip above the controls for them. Measurements are in Compose px;
+        // divide by density for CSS px.
+        LaunchedEffect(videoElement, topBarBottomPx, bottomBarTopPx, captionController.enabled) {
+            val video = videoElement ?: return@LaunchedEffect
+            if (topBarBottomPx > 0f && bottomBarTopPx > topBarBottomPx) {
+                val topCss = topBarBottomPx / density
+                val strip = if (captionController.enabled) captionStripCss else 0.0
+                val heightCss = ((bottomBarTopPx - topBarBottomPx) / density - strip).coerceAtLeast(0.0)
+                video.style.setProperty("top", "${topCss}px")
+                video.style.setProperty("height", "${heightCss}px")
+            }
+        }
+
         DisposableEffect(videoElement, url) {
             val video = videoElement ?: return@DisposableEffect onDispose {}
             var hlsJs: kotlin.js.JsAny? = null
             
             val job = scope.launch {
                 if (eventNumber != null) {
-                    val ladder = ladderResolver.resolve(eventNumber)
+                    val ladder = try {
+                        ladderResolver.resolve(eventNumber)
+                    } catch (e: Exception) {
+                        null
+                    }
                     renditions = ladder?.renditions
                     if (ladder != null) {
                         val blobUrl = createBlobUrl(ladder.masterPlaylistText, "application/vnd.apple.mpegurl")
-                        hlsJs = attachHlsWithAbr(video, blobUrl)
+                        hlsJs = attachHlsWithAbr(video, blobUrl, nativeUrl = url)
                     } else {
-                        hlsJs = attachHlsWithAbr(video, url)
+                        hlsJs = attachHlsWithAbr(video, url, nativeUrl = url)
                     }
                 } else {
-                    hlsJs = attachHlsWithAbr(video, url)
+                    hlsJs = attachHlsWithAbr(video, url, nativeUrl = url)
                 }
                 hlsInstance = hlsJs
             }
@@ -254,131 +278,108 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
         }
         
         // Custom Controls Overlay
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                TextButton(onClick = onClose) {
-                    Text("←", color = Color.White)
-                }
-            }
-            
-            Column(modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.5f)).padding(8.dp)) {
-                CaptionOverlay(
-                    captions = captionController.captions,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+        var thumbCenterRootX by remember { mutableFloatStateOf(0f) }
+        var controlsBoxTop by remember { mutableFloatStateOf(0f) }
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    // Slider
-                    Slider(
-                        value = if (isScrubbing) scrubFraction else if (duration > 0) (currentTime / duration).toFloat() else 0f,
-                        onValueChange = { frac ->
-                            isScrubbing = true
-                            scrubFraction = frac
-                            val target = (frac * duration).toDouble()
-                            
-                            // Request Preview Frame
-                            if (eventNumber != null) {
-                                val url160p = MediaKitConfig.Default.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
-                                requestFrame(eventNumber, url160p, target) { dataUrl ->
-                                    if (isScrubbing && scrubFraction == frac) { // only update if still on this fraction
-                                        previewDataUrl = dataUrl
-                                    }
+        Box(modifier = Modifier.fillMaxSize()) {
+            PlayerControlsOverlay(
+                modifier = Modifier.fillMaxSize().onGloballyPositioned {
+                    controlsBoxTop = it.boundsInWindow().bottom - 120f // Approximate bottom controls height
+                },
+                isPlaying = isPlaying,
+                durationMs = (duration * 1000).toLong(),
+                positionMs = (currentTime * 1000).toLong(),
+                isLive = duration <= 0.0,
+                isSeekable = duration > 0.0,
+                isScrubbing = isScrubbing,
+                sliderFraction = scrubFraction,
+                onSliderValueChange = { frac ->
+                    isScrubbing = true
+                    scrubFraction = frac
+                    val target = (frac * duration).toDouble()
+                    if (eventNumber != null) {
+                        val url160p = MediaKitConfig.Default.renditionUrl(eventNumber, com.livingpresence.mediakit.RenditionTier.P160)
+                        requestFrame(eventNumber, url160p, target) { dataUrl ->
+                            if (isScrubbing && scrubFraction == frac) {
+                                previewDataUrl = dataUrl
+                            }
+                        }
+                    }
+                },
+                onSliderValueChangeFinished = {
+                    isScrubbing = false
+                    val target = (scrubFraction * duration).toDouble()
+                    videoElement?.let { seekVideo(it, target) }
+                    previewDataUrl = null
+                },
+                onPlayPauseToggle = {
+                    videoElement?.let { if (isPlaying) pauseVideo(it) else playVideo(it) }
+                },
+                onJumpToLive = {
+                    videoElement?.let { seekVideo(it, duration) }
+                },
+                onClose = onClose,
+                onThumbCenterXChanged = { thumbCenterRootX = it },
+                onTopBarBottomChanged = { topBarBottomPx = it },
+                onBottomBarTopChanged = { bottomBarTopPx = it },
+                topRightControls = {
+                    PlayerTopRightControls(
+                        captionController = captionController,
+                        onToggleStats = { showStats = !showStats },
+                        qualityMenu = {
+                            QualityMenu(
+                                renditions = renditions,
+                                onSetAuto = { hlsInstance?.let { setHlsLevel(it, -1) } },
+                                onPinToRendition = { rendition ->
+                                    val index = renditions?.filter { !it.isAudioOnly }?.indexOf(rendition) ?: -1
+                                    if (index >= 0) hlsInstance?.let { setHlsLevel(it, index) }
+                                },
+                                onDisableVideo = {
+                                    val audioIndex = renditions?.indexOfFirst { it.isAudioOnly } ?: -1
+                                    if (audioIndex >= 0) hlsInstance?.let { setHlsLevel(it, audioIndex) }
                                 }
+                            )
+                        },
+                        trailingControls = {
+                            TextButton(onClick = {
+                                videoElement?.let { toggleFullscreenWeb(it) }
+                            }) {
+                                Text("Fullscreen", color = Color.White)
                             }
                         },
-                        onValueChangeFinished = {
-                            isScrubbing = false
-                            val target = (scrubFraction * duration).toDouble()
-                            videoElement?.let { seekVideo(it, target) }
-                            previewDataUrl = null
-                        },
-                        modifier = Modifier.fillMaxWidth()
                     )
-
-                    // Preview Bubble Native DOM Overlay
-                    if (isScrubbing) {
-                        var sliderBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
-                        Box(modifier = Modifier.matchParentSize().onGloballyPositioned { 
-                            sliderBounds = it.boundsInWindow() 
-                        })
-
-                        DisposableEffect(sliderBounds, scrubFraction, previewDataUrl) {
-                            val currentBounds = sliderBounds ?: return@DisposableEffect onDispose {}
-                            val img = document.createElement("img") as org.w3c.dom.HTMLImageElement
-                            val thumbX = currentBounds.left + (currentBounds.width * scrubFraction)
-                            
-                            img.style.apply {
-                                setProperty("position", "absolute")
-                                setProperty("left", "${thumbX - 70}px") // center 140px width
-                                setProperty("top", "${currentBounds.top - 90}px")
-                                setProperty("width", "140px")
-                                setProperty("height", "80px")
-                                setProperty("z-index", "100")
-                                setProperty("border", "2px solid white")
-                                setProperty("border-radius", "4px")
-                                setProperty("object-fit", "cover")
-                                setProperty("background", "black") // fallback color
-                            }
-                            if (previewDataUrl != null) {
-                                img.src = previewDataUrl!!
-                            }
-                            
-                            document.body?.appendChild(img)
-                            
-                            onDispose {
-                                img.remove()
-                            }
-                        }
-                    }
                 }
+            )
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = {
-                            videoElement?.let { if (isPlaying) pauseVideo(it) else playVideo(it) }
-                        }) {
-                            Text(if (isPlaying) "Pause" else "Play", color = Color.White)
-                        }
-                        Text(
-                            text = "${formatDurationWeb(currentTime)} / ${formatDurationWeb(duration)}",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelMedium
-                        )
+            if (isScrubbing && previewDataUrl != null) {
+                DisposableEffect(thumbCenterRootX, controlsBoxTop, previewDataUrl) {
+                    val img = document.createElement("img") as org.w3c.dom.HTMLImageElement
+                    img.style.apply {
+                        setProperty("position", "absolute")
+                        setProperty("left", "${thumbCenterRootX - 70}px")
+                        setProperty("top", "${controlsBoxTop - 90}px")
+                        setProperty("width", "140px")
+                        setProperty("height", "80px")
+                        setProperty("z-index", "100")
+                        setProperty("border", "2px solid white")
+                        setProperty("border-radius", "4px")
+                        setProperty("object-fit", "cover")
+                        setProperty("background", "black")
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        QualityMenu(
-                            renditions = renditions,
-                            onSetAuto = { hlsInstance?.let { setHlsLevel(it, -1) } },
-                            onPinToRendition = { rendition ->
-                                val index = renditions?.filter { !it.isAudioOnly }?.indexOf(rendition) ?: -1
-                                if (index >= 0) hlsInstance?.let { setHlsLevel(it, index) }
-                            },
-                            onDisableVideo = {
-                                val audioIndex = renditions?.indexOfFirst { it.isAudioOnly } ?: -1
-                                if (audioIndex >= 0) hlsInstance?.let { setHlsLevel(it, audioIndex) }
-                            }
-                        )
-                        TextButton(onClick = { showStats = !showStats }) {
-                            Text("Stats", color = Color.White)
-                        }
-                        if (captionController.enabled) {
-                            CaptionProviderButton(controller = captionController)
-                        }
-                        CaptionToggleButton(controller = captionController)
-
-                        TextButton(onClick = {
-                            videoElement?.let { toggleFullscreenWeb(it) }
-                        }) {
-                            Text("Fullscreen", color = Color.White)
-                        }
-                    }
+                    img.src = previewDataUrl!!
+                    document.body?.appendChild(img)
+                    onDispose { img.remove() }
                 }
             }
+
+            // Sit the captions just above the bottom control bar (in the reserved
+            // black strip), using the measured bar height so they never overlap the
+            // controls or hide behind the video.
+            val bottomBarHeightDp = (window.innerHeight.toFloat() - bottomBarTopPx / density).coerceAtLeast(0f)
+            CaptionOverlay(
+                captions = captionController.captions,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarHeightDp.dp)
+            )
         }
 
         if (showStats) {
@@ -408,10 +409,3 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
 
 @JsFun("function toggleFullscreenWeb(video) { if(video.requestFullscreen) video.requestFullscreen(); else if(video.webkitRequestFullscreen) video.webkitRequestFullscreen(); }")
 internal external fun toggleFullscreenWeb(video: kotlin.js.JsAny)
-
-private fun formatDurationWeb(seconds: Double): String {
-    val sec = seconds.toInt()
-    val m = sec / 60
-    val s = sec % 60
-    return "${m}:${s.toString().padStart(2, '0')}"
-}

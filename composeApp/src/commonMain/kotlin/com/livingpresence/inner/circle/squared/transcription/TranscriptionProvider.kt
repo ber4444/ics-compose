@@ -10,6 +10,5 @@ package com.livingpresence.inner.circle.squared.transcription
  */
 enum class TranscriptionProvider(val label: String) {
     DEEPGRAM("Deepgram"),
-    SONIOX("Soniox"),
-    ASSEMBLY_AI("AssemblyAI"),
+    SONIOX("Soniox");
 }

@@ -21,13 +21,8 @@ import kotlinx.browser.window
 import kotlinx.browser.document
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.draw.paint
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
-import org.jetbrains.compose.resources.painterResource
-import com.livingpresence.inner.circle.squared.generated.resources.Res
-import com.livingpresence.inner.circle.squared.generated.resources.background_image
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -66,15 +61,7 @@ external fun attachHls(videoElement: HTMLVideoElement, url: String): kotlin.js.J
 external fun destroyHls(hls: kotlin.js.JsAny?)
 
 
-actual fun onEventClick(eventNumber: Int, defaultAction: () -> Unit) {
-    defaultAction()
-}
-
-@Composable
-actual fun loginBackgroundModifier(): Modifier = Modifier.paint(
-    painter = painterResource(Res.drawable.background_image),
-    contentScale = ContentScale.Crop,
-)
+// onEventClick / loginBackgroundModifier are shared with iOS in nonAndroidMain.
 
 @Composable
 actual fun PlatformPlayerScreen(

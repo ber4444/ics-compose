@@ -5,7 +5,6 @@ import androidx.compose.runtime.remember
 import com.livingpresence.mediakit.EventInfo
 import com.livingpresence.mediakit.MediaKitConfig
 import com.livingpresence.mediakit.PlaylistInspector
-import com.livingpresence.mediakit.RenditionTier
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.request.get
@@ -94,14 +93,8 @@ private class WasmDownloadController : DownloadController {
         val job = scope.launch {
             try {
                 _states.update { it + (event.eventNumber to EventDownloadState(event.eventNumber, DownloadStatus.DOWNLOADING, 0f)) }
-                
-                val tierRendition = when (tier) {
-                    DownloadQuality.P720 -> RenditionTier.P720
-                    DownloadQuality.P360 -> RenditionTier.P360
-                    DownloadQuality.P160 -> RenditionTier.P160
-                    DownloadQuality.AUDIO -> RenditionTier.AUDIO
-                }
-                val masterUrl = MediaKitConfig.Default.renditionUrl(event.eventNumber, tierRendition)
+
+                val masterUrl = MediaKitConfig.Default.renditionUrl(event.eventNumber, tier.toRenditionTier())
                 val masterResponse = httpClient.get(masterUrl).bodyAsText()
                 val variants = PlaylistInspector.parseMaster(masterResponse)
                 val chunklistUri = variants.firstOrNull()?.uri ?: throw Exception("No variants found")

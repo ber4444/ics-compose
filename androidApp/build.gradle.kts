@@ -61,9 +61,6 @@ androidComponents {
 
         val sonioxKey = transcriptionSecrets.getProperty("SONIOX_API_KEY", "")
         variant.buildConfigFields?.put("SONIOX_API_KEY", com.android.build.api.variant.BuildConfigField("String", "\"$sonioxKey\"", "Soniox API key (local, gitignored)"))
-
-        val assemblyAiKey = transcriptionSecrets.getProperty("ASSEMBLYAI_API_KEY", "")
-        variant.buildConfigFields?.put("ASSEMBLYAI_API_KEY", com.android.build.api.variant.BuildConfigField("String", "\"$assemblyAiKey\"", "AssemblyAI API key (local, gitignored)"))
     }
 }
 

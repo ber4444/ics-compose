@@ -82,14 +82,6 @@ class AndroidDownloadController(
         startPollingIfNeeded()
     }
 
-    private fun DownloadQuality.toRenditionTier(): com.livingpresence.mediakit.RenditionTier =
-        when (this) {
-            DownloadQuality.P720 -> com.livingpresence.mediakit.RenditionTier.P720
-            DownloadQuality.P360 -> com.livingpresence.mediakit.RenditionTier.P360
-            DownloadQuality.P160 -> com.livingpresence.mediakit.RenditionTier.P160
-            DownloadQuality.AUDIO -> com.livingpresence.mediakit.RenditionTier.AUDIO
-        }
-
     override fun remove(eventNumber: Int) {
         center.remove(eventNumber)
         refresh()

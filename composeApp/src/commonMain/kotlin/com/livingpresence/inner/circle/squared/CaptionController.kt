@@ -96,14 +96,38 @@ internal fun CaptionToggleButton(controller: CaptionController) {
     }
 }
 
+/**
+ * The shared top-right control cluster for every player: a platform-provided
+ * [qualityMenu] slot, the Stats toggle, and the caption buttons, followed by an
+ * optional platform-specific [trailingControls] slot (PiP on iOS, Fullscreen on
+ * web). Emitted into the `topRightControls` [androidx.compose.foundation.layout.RowScope]
+ * of [PlayerControlsOverlay].
+ */
+@Composable
+internal fun PlayerTopRightControls(
+    captionController: CaptionController,
+    onToggleStats: () -> Unit,
+    qualityMenu: @Composable () -> Unit,
+    trailingControls: @Composable () -> Unit = {},
+) {
+    qualityMenu()
+    TextButton(onClick = onToggleStats) {
+        Text("Stats", color = Color.White)
+    }
+    if (captionController.enabled) {
+        CaptionProviderButton(controller = captionController)
+    }
+    CaptionToggleButton(controller = captionController)
+    trailingControls()
+}
+
 /** Tap to cycle the live streaming provider (Deepgram ↔ Soniox). */
 @Composable
 internal fun CaptionProviderButton(controller: CaptionController) {
     TextButton(onClick = {
         val next = when (controller.provider) {
             TranscriptionProvider.DEEPGRAM -> TranscriptionProvider.SONIOX
-            TranscriptionProvider.SONIOX -> TranscriptionProvider.ASSEMBLY_AI
-            TranscriptionProvider.ASSEMBLY_AI -> TranscriptionProvider.DEEPGRAM
+            TranscriptionProvider.SONIOX -> TranscriptionProvider.DEEPGRAM
         }
         controller.onSelectProvider(next)
     }) {
