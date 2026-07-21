@@ -15,13 +15,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Tests [MainViewModel] state transitions (plan.md Phase 6): login gating,
- * gallery visibility, video loading + error paths.
+ * Tests [MainViewModel] state transitions: gallery visibility,
+ * video loading + error paths.
  */
 class MainViewModelTest {
-
-    private val correctPassword = "SECRET"
-    private val wrongPassword = "nope"
 
     @BeforeTest
     fun setUp() {
@@ -34,46 +31,26 @@ class MainViewModelTest {
     }
 
     @Test
-    fun isLiveEventsEnabled_isFalseUntilCorrectPasswordEntered() = runTest {
-        val vm = MainViewModel(VideoRepository(FakeHttpClient), correctPassword)
-        assertFalse(vm.uiState.value.isLiveEventsEnabled)
-
-        vm.onPasswordChanged(wrongPassword)
-        assertFalse(vm.uiState.value.isLiveEventsEnabled)
-
-        vm.onPasswordChanged(correctPassword)
-        assertTrue(vm.uiState.value.isLiveEventsEnabled)
-    }
-
-    @Test
-    fun emptyPassword_doesNotEnable() = runTest {
-        val vm = MainViewModel(VideoRepository(FakeHttpClient), correctPassword)
-        vm.onPasswordChanged("")
-        assertFalse(vm.uiState.value.isLiveEventsEnabled)
-    }
-
-    @Test
-    fun showGallery_setsGalleryVisible() = runTest {
-        val vm = MainViewModel(videoRepositoryWith(emptyList()), correctPassword)
-        assertFalse(vm.uiState.value.isGalleryVisible)
-
-        vm.showGallery()
-        assertTrue(vm.uiState.value.isGalleryVisible)
-    }
-
-    @Test
-    fun showGallery_loadsEventsAndPopulatesState() = runTest {
+    fun init_loadsEventsAndPopulatesState() = runTest {
         val events = listOf(
             EventInfo(eventNumber = 3, isLive = false, durationMs = 10_000),
             EventInfo(eventNumber = 1, isLive = true, durationMs = 0),
         )
-        val vm = MainViewModel(videoRepositoryWith(events), correctPassword)
-
-        vm.showGallery()
+        val vm = MainViewModel(videoRepositoryWith(events))
 
         assertEquals(events, vm.uiState.value.availableEvents)
         assertFalse(vm.uiState.value.isLoadingVideos)
         assertNull(vm.uiState.value.videoLoadError)
+        assertTrue(vm.uiState.value.isGalleryVisible)
+    }
+    
+    @Test
+    fun playVideo_hidesGallery() = runTest {
+        val vm = MainViewModel(videoRepositoryWith(emptyList()))
+        assertTrue(vm.uiState.value.isGalleryVisible)
+
+        vm.playVideo(1)
+        assertFalse(vm.uiState.value.isGalleryVisible)
     }
 
     @Test
@@ -86,7 +63,7 @@ class MainViewModelTest {
                 return events
             }
         }
-        val vm = MainViewModel(repo, correctPassword)
+        val vm = MainViewModel(repo) // triggers init -> ensureVideosLoaded
 
         vm.ensureVideosLoaded()
         vm.ensureVideosLoaded()
@@ -106,10 +83,10 @@ class MainViewModelTest {
                 return events
             }
         }
-        val vm = MainViewModel(repo, correctPassword)
+        val vm = MainViewModel(repo) // load 1
 
-        vm.ensureVideosLoaded()
-        vm.retryLoadingVideos()
+        vm.ensureVideosLoaded() // no-op
+        vm.retryLoadingVideos() // load 2
 
         assertEquals(2, loadCount)
     }
