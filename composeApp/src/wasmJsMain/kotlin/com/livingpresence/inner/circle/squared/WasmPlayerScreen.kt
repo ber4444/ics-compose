@@ -277,6 +277,26 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
             }
         }
         
+        DisposableEffect(hlsInstance, renditions) {
+            var visibilityListener: kotlin.js.JsAny? = null
+            if (hlsInstance != null && renditions != null) {
+                visibilityListener = setupVisibilityListener(
+                    onHidden = {
+                        val audioIdx = renditions?.indexOfFirst { it.isAudioOnly } ?: -1
+                        if (audioIdx >= 0) {
+                            setHlsLevel(hlsInstance!!, audioIdx)
+                        }
+                    },
+                    onVisible = {
+                        setHlsLevel(hlsInstance!!, -1)
+                    }
+                )
+            }
+            onDispose {
+                visibilityListener?.let { removeVisibilityListener(it) }
+            }
+        }
+
         // Custom Controls Overlay
         var thumbCenterRootX by remember { mutableFloatStateOf(0f) }
         var controlsBoxTop by remember { mutableFloatStateOf(0f) }
@@ -341,6 +361,11 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
                             )
                         },
                         trailingControls = {
+                            TextButton(onClick = {
+                                videoElement?.let { togglePip(it) }
+                            }) {
+                                Text("PiP", color = Color.White)
+                            }
                             TextButton(onClick = {
                                 videoElement?.let { toggleFullscreenWeb(it) }
                             }) {
@@ -409,3 +434,28 @@ fun WasmPlayerScreen(url: String, onClose: () -> Unit) {
 
 @JsFun("function toggleFullscreenWeb(video) { if(video.requestFullscreen) video.requestFullscreen(); else if(video.webkitRequestFullscreen) video.webkitRequestFullscreen(); }")
 internal external fun toggleFullscreenWeb(video: kotlin.js.JsAny)
+
+@JsFun("function togglePip(video) { if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(function(e){}); } else if (video.requestPictureInPicture) { video.requestPictureInPicture().catch(function(e){}); } }")
+internal external fun togglePip(video: kotlin.js.JsAny)
+
+@JsFun("""
+function setupVisibilityListener(onHidden, onVisible) {
+    var listener = function() {
+        if (document.hidden) {
+            onHidden();
+        } else {
+            onVisible();
+        }
+    };
+    document.addEventListener("visibilitychange", listener);
+    return listener;
+}
+""")
+internal external fun setupVisibilityListener(onHidden: () -> Unit, onVisible: () -> Unit): kotlin.js.JsAny
+
+@JsFun("""
+function removeVisibilityListener(listener) {
+    document.removeEventListener("visibilitychange", listener);
+}
+""")
+internal external fun removeVisibilityListener(listener: kotlin.js.JsAny)
