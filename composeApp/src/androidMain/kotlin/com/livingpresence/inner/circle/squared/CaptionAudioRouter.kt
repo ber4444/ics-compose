@@ -20,10 +20,13 @@ internal interface PcmTapSink {
  * and publishes captions). Process singleton so it outlives the player screen.
  *
  * All provider selection / caption plumbing lives in the shared [LiveTranscriber];
- * this class is only the Android-specific capture + resample. On-device Whisper
- * ([TranscriptionEngine]) is intentionally not in this path.
+ * this class is only the Android-specific capture + resample.
  */
 internal class CaptionAudioRouter private constructor() : PcmTapSink {
+
+    companion object {
+        private const val TARGET_SAMPLE_RATE_HZ = 16000
+    }
 
     private val live = LiveTranscriber()
 

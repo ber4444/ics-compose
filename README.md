@@ -33,7 +33,6 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 - **Offline downloads.** Bounded (VOD) events download via WorkManager (Android) 
   and `AVAssetDownloadURLSession` (iOS) into a cache shared with playback; 
   truly-live events get no download affordance.
-- **On-Device Transcription**: A custom ExoPlayer `TeeAudioProcessor` taps the decoded PCM audio stream and feeds it to an on-device `whisper.cpp` engine. The `ggml-base.en` model provides real-time, privacy-preserving closed captions without a network round-trip.
 - **Cross-platform Parity.** A seamless unified experience across Android, iOS, and Wasm. 
   The app features native in-app Web navigation, unified UI aesthetics across all targets, 
   hardware-accelerated thumbnail extraction on iOS via `AVAssetImageGenerator`, and robust 
@@ -108,7 +107,7 @@ migration.” The migration PR intentionally leaves these follow-ups out:
   (JetBrains' recommended full platform restructure). The minimum supported
   split keeps iOS and Wasm in `:composeApp`.
 - [ ] Revisit the ordinary dependency upgrades grouped into Dependabot PR #33.
-  AndroidX, Media3, Ktor, coroutines, Metro, whisper.cpp, and other runtime updates
+  AndroidX, Media3, Ktor, coroutines, Metro, and other runtime updates
   should be reviewed in smaller dependency-only PRs.
 - [ ] Extract repeated build configuration into convention plugins after the
   migrated module boundaries have stabilized.

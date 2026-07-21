@@ -172,8 +172,7 @@ private fun ExoPlayerScreen(
     val fullscreen = rememberFullscreenToggle()
 
     // Phase 8: on-device transcription (CC). The RenderersFactory in the service
-    // taps PCM; captions render via CaptionOverlay below. Lazily downloads the
-    // Whisper model on first enable (~147 MB base.en, from Hugging Face, not bundled).
+    // taps PCM; captions render via CaptionOverlay below.
     val captionController = rememberCaptionController(player)
 
     var isScrubbing by remember(player) { mutableStateOf(false) }
