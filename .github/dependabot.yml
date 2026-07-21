@@ -22,6 +22,8 @@ updates:
       # See the buildscript block in build.gradle.kts for the rationale.
       - dependency-name: "com.fasterxml.jackson.core:jackson-databind"
       - dependency-name: "com.fasterxml.jackson.core:jackson-core"
+      - dependency-name: "org.jetbrains.kotlin*"
+        versions: ["2.4.10"]
 
   # GitHub Actions used by the CI workflows (checkout, setup-java, codeql, etc.).
   - package-ecosystem: "github-actions"
