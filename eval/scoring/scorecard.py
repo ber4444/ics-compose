@@ -7,8 +7,8 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
-from providers import TranscriptResult
-from scoring.metrics import calculate_and_dump_diff
+from providers import TranscriptResult, StreamResult
+from scoring.metrics import calculate_and_dump_diff, calculate_streaming_metrics
 
 def generate_scorecard(allow_unverified: bool = False):
     with open(config.MANIFEST_PATH, 'r') as f:
@@ -20,6 +20,9 @@ def generate_scorecard(allow_unverified: bool = False):
     
     # Also track boosted vs baseline runs
     boost_comparison = defaultdict(lambda: defaultdict(dict)) # clip_id -> provider -> {"baseline": metrics, "boosted": metrics}
+
+    # Streaming (Phase 4) results
+    stream_by_provider = defaultdict(list)  # provider -> [{clip_id, metrics}]
     
     for entry in manifest["entries"]:
         clip_id = entry["id"]
@@ -67,7 +70,15 @@ def generate_scorecard(allow_unverified: bool = False):
                     
                     boost_metrics = calculate_and_dump_diff(ref_text, hyp_boost.text, clip_id, f"{provider}-boost", config.REPORTS_DIR, domain_terms)
                     boost_comparison[clip_id][provider]["boosted"] = boost_metrics
-                
+
+            # Streaming (real-time)
+            stream_fix_path = os.path.join(config.FIXTURES_DIR, f"{provider}-stream", f"{clip_id}.json")
+            if os.path.exists(stream_fix_path):
+                with open(stream_fix_path, "r") as f:
+                    sr = StreamResult(**json.load(f))
+                stream_metrics = calculate_streaming_metrics(ref_text, sr)
+                stream_by_provider[provider].append({"clip_id": clip_id, "metrics": stream_metrics})
+
     # Generate Markdown
     md = []
     title = "STT Provider Scorecard"
@@ -133,6 +144,26 @@ def generate_scorecard(allow_unverified: bool = False):
                 md.append(f"| {clip_id} | {p} | {b_wer:.3f} | {bt_wer:.3f} | {b_f1:.3f} | {bt_f1:.3f} |")
     md.append("\n")
         
+    # Streaming section (Phase 4)
+    if any(stream_by_provider.get(p) for p in providers):
+        md.append("## Streaming (Live-Caption Realism)\n")
+        md.append("Real-time paced sessions. Flicker = fraction of already-shown characters later "
+                  "rewritten (0 = captions only append). Finalization latency is measured against each "
+                  "provider's **self-reported** word times (forced-alignment ground truth is out of scope).\n")
+        md.append("| Provider | Clips | Streaming WER | Flicker | Final Latency (med) | Final Latency (p95) |")
+        md.append("|---|---|---|---|---|---|")
+        for p in providers:
+            runs = stream_by_provider.get(p, [])
+            if not runs:
+                md.append(f"| {p} | 0 | n/a (not run) | n/a | n/a | n/a |")
+                continue
+            swer = avg_metric(runs, "stream_wer")
+            flick = avg_metric(runs, "flicker")
+            lat_med = avg_metric(runs, "final_latency_med_s")
+            lat_p95 = avg_metric(runs, "final_latency_p95_s")
+            md.append(f"| {p} | {len(runs)} | {swer:.3f} | {flick:.3f} | {lat_med:.2f}s | {lat_p95:.2f}s |")
+        md.append("\n")
+
     md.append("## Worst 5 Clips by Provider (WER Norm)\n")
     for p in providers:
         runs = results_by_provider.get(p, [])

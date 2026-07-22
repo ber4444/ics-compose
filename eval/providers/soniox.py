@@ -1,6 +1,8 @@
 import os
+import json
 from typing import List
-from .base import Provider, TranscriptResult, WordInfo
+from .base import Provider, TranscriptResult, WordInfo, StreamResult, StreamEvent, FinalWord
+from .streaming import run_ws_stream
 from soniox.client import SonioxClient
 
 class SonioxProvider(Provider):
@@ -46,4 +48,60 @@ class SonioxProvider(Provider):
             text=text,
             words=words,
             raw_response={"text": res.text} # simplified raw response
+        )
+
+    def _transcribe_stream_live(self, wav_path: str) -> StreamResult:
+        api_key = os.environ.get("SONIOX_API_KEY")
+        if not api_key:
+            raise ValueError("SONIOX_API_KEY is not set")
+
+        url = "wss://stt-rt.soniox.com/transcribe-websocket"
+        config = json.dumps({
+            "api_key": api_key,
+            "model": "stt-rt-v5",
+            "audio_format": "pcm_s16le",
+            "sample_rate": 16000,
+            "num_channels": 1,
+            "language_hints": ["en"],
+        })
+
+        # Soniox streams tokens: final tokens are emitted once (permanent); non-final
+        # tokens are the evolving tail, re-sent each message. Display = committed
+        # finals + this message's non-final tail.
+        state = {"committed": "", "events": [], "final_words": []}
+
+        def on_message(data, t):
+            if data.get("error_code"):
+                raise RuntimeError(f"Soniox error {data.get('error_code')}: {data.get('error_message')}")
+            tokens = data.get("tokens", [])
+            tail = ""
+            finalized_any = False
+            for tok in tokens:
+                text = tok.get("text", "")
+                if tok.get("is_final"):
+                    state["committed"] += text
+                    if text.strip():
+                        state["final_words"].append(
+                            FinalWord(word=text.strip(), start_s=tok.get("start_ms", 0) / 1000.0, final_t_recv=t)
+                        )
+                    finalized_any = True
+                else:
+                    tail += text
+            display = (state["committed"] + tail).strip()
+            state["events"].append(
+                StreamEvent(t_recv=t, display_text=display, is_final_update=finalized_any)
+            )
+
+        duration_s = run_ws_stream(
+            url, wav_path, on_message,
+            init_message=config,
+            close_message="",  # empty text frame signals end-of-audio to Soniox
+        )
+
+        return StreamResult(
+            final_text=state["committed"].strip(),
+            events=state["events"],
+            final_words=state["final_words"],
+            audio_duration_s=duration_s,
+            model="stt-rt-v5",
         )

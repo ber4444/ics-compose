@@ -1,7 +1,9 @@
 import os
+import json
 import httpx
 from typing import List
-from .base import Provider, TranscriptResult, WordInfo
+from .base import Provider, TranscriptResult, WordInfo, StreamResult, StreamEvent, FinalWord
+from .streaming import run_ws_stream
 
 class DeepgramProvider(Provider):
     @property
@@ -59,4 +61,55 @@ class DeepgramProvider(Provider):
             text=text,
             words=words,
             raw_response=raw
+        )
+
+    def _transcribe_stream_live(self, wav_path: str) -> StreamResult:
+        api_key = os.environ.get("DEEPGRAM_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPGRAM_API_KEY is not set")
+
+        params = (
+            "model=nova-3&encoding=linear16&sample_rate=16000&channels=1"
+            "&interim_results=true&punctuate=true&smart_format=true"
+        )
+        url = f"wss://api.deepgram.com/v1/listen?{params}"
+
+        # Deepgram emits per-segment Results: interim (is_final=false) updates refine
+        # the current segment; a final locks it and the next segment starts fresh.
+        state = {"committed": "", "events": [], "final_words": []}
+
+        def on_message(data, t):
+            if data.get("type") != "Results":
+                return
+            try:
+                alt = data["channel"]["alternatives"][0]
+            except (KeyError, IndexError):
+                return
+            transcript = alt.get("transcript", "")
+            is_final = bool(data.get("is_final", False))
+            if is_final and transcript:
+                state["committed"] = (state["committed"] + " " + transcript).strip()
+                for w in alt.get("words", []):
+                    state["final_words"].append(
+                        FinalWord(word=w["word"], start_s=float(w["start"]), final_t_recv=t)
+                    )
+                display = state["committed"]
+            else:
+                display = (state["committed"] + " " + transcript).strip()
+            state["events"].append(
+                StreamEvent(t_recv=t, display_text=display, is_final_update=is_final)
+            )
+
+        duration_s = run_ws_stream(
+            url, wav_path, on_message,
+            headers={"Authorization": f"Token {api_key}"},
+            close_message=json.dumps({"type": "CloseStream"}),
+        )
+
+        return StreamResult(
+            final_text=state["committed"].strip(),
+            events=state["events"],
+            final_words=state["final_words"],
+            audio_duration_s=duration_s,
+            model="nova-3",
         )
