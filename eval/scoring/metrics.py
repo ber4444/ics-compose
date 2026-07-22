@@ -98,3 +98,81 @@ def calculate_and_dump_diff(ref_text: str, hyp_text: str, clip_id: str, provider
         metrics.update(calculate_entity_metrics(ref_text, hyp_text, domain_terms))
         
     return metrics
+
+
+def _percentile(sorted_vals, pct):
+    """Linear-interpolated percentile of an already-sorted list."""
+    if not sorted_vals:
+        return 0.0
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    k = (len(sorted_vals) - 1) * (pct / 100.0)
+    lo = int(k)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    frac = k - lo
+    return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
+
+
+def _common_prefix_len(a: str, b: str) -> int:
+    n = min(len(a), len(b))
+    i = 0
+    while i < n and a[i] == b[i]:
+        i += 1
+    return i
+
+
+def calculate_streaming_metrics(ref_text: str, stream) -> Dict[str, float]:
+    """Metrics for a recorded streaming session (a StreamResult).
+
+    - stream_wer: normalized WER of the final transcript (comparable to batch WER).
+    - flicker: fraction of already-shown characters that were later rewritten /
+      retracted across successive partials (0 = captions only ever append).
+    - final_latency_{med,p95}_s: per final word, wall-clock finalization time minus
+      the word's *self-reported* spoken start (labeled self-reported; a forced-
+      alignment ground truth is Phase 5, intentionally not implemented).
+    """
+    norm_ref = normalize_text(ref_text) or "<empty>"
+    norm_hyp = normalize_text(stream.final_text)
+    stream_wer = jiwer.wer(norm_ref, norm_hyp)
+
+    # Flicker: sum of prefix chars retracted between consecutive displayed captions.
+    prev = ""
+    retracted = 0
+    for ev in stream.events:
+        cur = ev.display_text
+        cp = _common_prefix_len(prev, cur)
+        retracted += max(0, len(prev) - cp)
+        prev = cur
+    total_chars = max(1, len(stream.final_text))
+    flicker = retracted / total_chars
+
+    lats = sorted(w.final_t_recv - w.start_s for w in stream.final_words)
+    return {
+        "stream_wer": stream_wer,
+        "flicker": flicker,
+        "final_latency_med_s": _percentile(lats, 50),
+        "final_latency_p95_s": _percentile(lats, 95),
+        "num_final_words": len(stream.final_words),
+    }
+
+
+def calculate_translation_fidelity(ref_translation: str, hyp_translation: str) -> Dict[str, float]:
+    """How much ASR error survives machine translation.
+
+    Compares translate(hypothesis) against translate(verified reference) — the ideal
+    translation the user would have gotten from perfect ASR.
+    - trans_chrf: chrF (0-100, higher better); language-agnostic, morphology-aware,
+      the recommended MT metric. No ML model, deterministic.
+    - trans_wer / trans_cer: post-translation word/char error rate (raw target-language
+      text; the English Whisper normalizer is NOT applied), directly comparable to the
+      source-side WER so error amplification is visible.
+    """
+    import sacrebleu
+
+    if not ref_translation.strip():
+        return {"trans_chrf": 0.0, "trans_wer": 1.0, "trans_cer": 1.0}
+
+    chrf = sacrebleu.sentence_chrf(hyp_translation, [ref_translation]).score
+    trans_wer = jiwer.wer(ref_translation, hyp_translation if hyp_translation.strip() else "<empty>")
+    trans_cer = jiwer.cer(ref_translation, hyp_translation)
+    return {"trans_chrf": chrf, "trans_wer": trans_wer, "trans_cer": trans_cer}

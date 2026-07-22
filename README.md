@@ -55,6 +55,17 @@ It plays live/recorded HLS event streams from a Wowza nDVR server and turns four
 | **Preview Disk Caching** (persisted between sessions) | ✅ | ✅ | ❌ |
 | **Memory Governor** (OOM prevention during PiP/bg) | ✅ | ❌ | ❌ |
 
+## Caption provider evaluation
+
+The live-caption provider choice is backed by a reproducible, record/replay eval
+harness in [`eval/`](./eval) that scores Deepgram and Soniox against a domain-specific
+golden set of event audio — batch WER/CER, domain-term recall (Entity F1),
+keyterm-boosting impact, and real-time streaming realism (flicker + finalization
+latency). On this material **Soniox clearly outperforms Deepgram** (0.242 vs 0.350
+normalized WER; 0.77 vs 0.49 Entity F1), which is why the app ships Soniox as its
+preferred provider. See the generated [scorecard](./eval/reports/scorecard.md) and
+[`eval/README.md`](./eval/README.md).
+
 ## Architecture
 
 ```
