@@ -1,6 +1,6 @@
 # STT Provider Eval Harness
 
-A reproducible, pytest-driven harness that scores deepgram, soniox, and assemblyai against a domain-specific golden set of event-stream audio.
+A reproducible, pytest-driven harness that scores deepgram and soniox against a domain-specific golden set of event-stream audio.
 
 ## Setup
 
@@ -17,9 +17,6 @@ A reproducible, pytest-driven harness that scores deepgram, soniox, and assembly
    ```
    DEEPGRAM_API_KEY=your_key
    SONIOX_API_KEY=your_key
-   ASSEMBLYAI_API_KEY=your_key
-   WOWZA_USER=your_user
-   WOWZA_PASS=your_password
    ```
 
 ## Honesty Convention

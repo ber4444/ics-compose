@@ -21,9 +21,10 @@ class DeepgramProvider(Provider):
         }
         
         if boost and domain_terms:
-            # Deepgram uses keywords param for boosting: keywords=["term:boost_value"]
-            # e.g., keywords=["apple:2", "banana:2"]
-            params["keywords"] = [f"{term}:2" for term in domain_terms]
+            # nova-3 replaced the old `keywords=term:intensifier` boosting with
+            # keyterm prompting: one `keyterm=<phrase>` per term (no numeric boost).
+            # httpx encodes a list value as repeated query params.
+            params["keyterm"] = domain_terms
             
         with open(wav_path, "rb") as f:
             audio_data = f.read()

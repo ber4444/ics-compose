@@ -14,13 +14,17 @@ def generate_scorecard(allow_unverified: bool = False):
     with open(config.MANIFEST_PATH, 'r') as f:
         manifest = json.load(f)
         
-    providers = ["deepgram", "assemblyai", "soniox"]
+    providers = ["deepgram", "soniox"]
     results_by_provider = defaultdict(list)
     results_by_condition = defaultdict(lambda: defaultdict(list))
+    
+    # Also track boosted vs baseline runs
+    boost_comparison = defaultdict(lambda: defaultdict(dict)) # clip_id -> provider -> {"baseline": metrics, "boosted": metrics}
     
     for entry in manifest["entries"]:
         clip_id = entry["id"]
         ref_path = os.path.join(config.GOLDEN_DIR, entry["ref"])
+        domain_terms = entry.get("domain_terms", [])
         
         if not entry.get("verified", False) and not allow_unverified:
             # Skip unverified
@@ -34,24 +38,35 @@ def generate_scorecard(allow_unverified: bool = False):
             ref_text = f.read()
             
         for provider in providers:
+            # Baseline
             fix_path = os.path.join(config.FIXTURES_DIR, provider, f"{clip_id}.json")
-            if not os.path.exists(fix_path):
-                # Missing fixture
-                continue
+            if os.path.exists(fix_path):
+                with open(fix_path, "r") as f:
+                    hyp = TranscriptResult(**json.load(f))
+                    
+                metrics = calculate_and_dump_diff(ref_text, hyp.text, clip_id, provider, config.REPORTS_DIR, domain_terms)
                 
-            with open(fix_path, "r") as f:
-                hyp = TranscriptResult(**json.load(f))
+                res = {
+                    "clip_id": clip_id,
+                    "metrics": metrics
+                }
+                results_by_provider[provider].append(res)
                 
-            metrics = calculate_and_dump_diff(ref_text, hyp.text, clip_id, provider, config.REPORTS_DIR)
-            
-            res = {
-                "clip_id": clip_id,
-                "metrics": metrics
-            }
-            results_by_provider[provider].append(res)
-            
-            for cond in entry.get("conditions", []):
-                results_by_condition[cond][provider].append(res)
+                for cond in entry.get("conditions", []):
+                    results_by_condition[cond][provider].append(res)
+                    
+                if domain_terms:
+                    boost_comparison[clip_id][provider]["baseline"] = metrics
+                    
+            # Boosted
+            if domain_terms:
+                boost_fix_path = os.path.join(config.FIXTURES_DIR, f"{provider}-boost", f"{clip_id}.json")
+                if os.path.exists(boost_fix_path):
+                    with open(boost_fix_path, "r") as f:
+                        hyp_boost = TranscriptResult(**json.load(f))
+                    
+                    boost_metrics = calculate_and_dump_diff(ref_text, hyp_boost.text, clip_id, f"{provider}-boost", config.REPORTS_DIR, domain_terms)
+                    boost_comparison[clip_id][provider]["boosted"] = boost_metrics
                 
     # Generate Markdown
     md = []
@@ -63,22 +78,31 @@ def generate_scorecard(allow_unverified: bool = False):
     def avg_metric(res_list, key):
         if not res_list:
             return 0.0
-        return sum(r["metrics"][key] for r in res_list) / len(res_list)
+        return sum(r["metrics"].get(key, 0.0) for r in res_list) / len(res_list)
         
     md.append("## Overall Metrics\n")
-    md.append("| Provider | WER (Norm) | WER (Fmt) | CER (Norm) |")
-    md.append("|---|---|---|---|")
+    md.append("| Provider | WER (Norm) | WER (Fmt) | CER (Norm) | Entity F1 |")
+    md.append("|---|---|---|---|---|")
     
     for p in providers:
         runs = results_by_provider.get(p, [])
         if not runs:
-            md.append(f"| {p} | n/a (not run) | n/a (not run) | n/a (not run) |")
+            md.append(f"| {p} | n/a (not run) | n/a (not run) | n/a (not run) | n/a |")
             continue
             
         w_norm = avg_metric(runs, "wer_norm")
         w_fmt = avg_metric(runs, "wer_fmt")
         c_norm = avg_metric(runs, "cer_norm")
-        md.append(f"| {p} | {w_norm:.3f} | {w_fmt:.3f} | {c_norm:.3f} |")
+        
+        # calculate avg entity F1 across clips that actually had domain terms
+        runs_with_entities = [r for r in runs if "entity_f1" in r["metrics"]]
+        if runs_with_entities:
+            ent_f1 = sum(r["metrics"]["entity_f1"] for r in runs_with_entities) / len(runs_with_entities)
+            ent_str = f"{ent_f1:.3f}"
+        else:
+            ent_str = "n/a"
+            
+        md.append(f"| {p} | {w_norm:.3f} | {w_fmt:.3f} | {c_norm:.3f} | {ent_str} |")
         
     md.append("\n## Metrics by Condition\n")
     for cond, p_dict in results_by_condition.items():
@@ -92,6 +116,22 @@ def generate_scorecard(allow_unverified: bool = False):
             else:
                 md.append(f"| {p} | {avg_metric(runs, 'wer_norm'):.3f} |")
         md.append("\n")
+        
+    md.append("## Keyterm Boosting Impact (Clips with Domain Terms)\n")
+    md.append("| Clip ID | Provider | Baseline WER | Boosted WER | Baseline Entity F1 | Boosted Entity F1 |")
+    md.append("|---|---|---|---|---|---|")
+    
+    for clip_id, p_dict in boost_comparison.items():
+        for p, metrics_dict in p_dict.items():
+            base = metrics_dict.get("baseline", {})
+            boost = metrics_dict.get("boosted", {})
+            if base and boost:
+                b_wer = base.get("wer_norm", 0.0)
+                bt_wer = boost.get("wer_norm", 0.0)
+                b_f1 = base.get("entity_f1", 0.0)
+                bt_f1 = boost.get("entity_f1", 0.0)
+                md.append(f"| {clip_id} | {p} | {b_wer:.3f} | {bt_wer:.3f} | {b_f1:.3f} | {bt_f1:.3f} |")
+    md.append("\n")
         
     md.append("## Worst 5 Clips by Provider (WER Norm)\n")
     for p in providers:

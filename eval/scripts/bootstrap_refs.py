@@ -12,20 +12,19 @@ from providers import TranscriptResult
 
 def align_and_vote(texts: list) -> tuple:
     """
-    Given 3 text strings, splits into words and performs a basic majority vote.
+    Given 2 text strings, splits into words and performs a basic majority vote.
     Returns (draft_text, disagreement_spans).
-    This is a naive greedy aligner for demonstration.
     """
-    if len(texts) < 3:
+    if len(texts) < 2:
+        return texts[0] if texts else "", []
+        
+    if not texts[0] and texts[1]:
+        return texts[1], []
+    elif texts[0] and not texts[1]:
         return texts[0], []
         
     w1 = texts[0].split()
     w2 = texts[1].split()
-    w3 = texts[2].split()
-    
-    # Very basic: if all 3 match, use it. If 2/3 match, use it. Else flag.
-    # We will use difflib to align w1 and w2, then align w3 to the consensus.
-    # For a real implementation, a proper Multiple Sequence Alignment (MSA) like ROVER is used.
     
     matcher = difflib.SequenceMatcher(None, w1, w2)
     consensus = []
@@ -35,8 +34,6 @@ def align_and_vote(texts: list) -> tuple:
         if tag == 'equal':
             consensus.extend(w1[i1:i2])
         else:
-            # Check if w3 matches w1 or w2 in this region
-            w3_sub = w3[j1:j2] if j2 < len(w3) else w3[j1:len(w3)] # simplistic
             span_id = len(disagreements)
             flag_text = f"[[FLAG_{span_id}]]"
             consensus.append(flag_text)
@@ -44,8 +41,7 @@ def align_and_vote(texts: list) -> tuple:
                 "span": span_id,
                 "variants": [
                     " ".join(w1[i1:i2]),
-                    " ".join(w2[j1:j2]),
-                    " ".join(w3_sub)
+                    " ".join(w2[j1:j2])
                 ]
             })
             
@@ -58,7 +54,7 @@ def main():
     with open(config.MANIFEST_PATH, 'r') as f:
         manifest = json.load(f)
         
-    providers = ["deepgram", "assemblyai", "soniox"]
+    providers = ["deepgram", "soniox"]
     
     os.makedirs(config.REPORTS_DIR, exist_ok=True)
     os.makedirs(config.REFS_DIR, exist_ok=True)
@@ -90,12 +86,12 @@ def main():
         if disagreements:
             report_md.append(f"## Clip: {clip_id}")
             report_md.append(f"Draft written to `{ref_path}`.\n")
-            report_md.append("| Span | Deepgram | AssemblyAI | Soniox |")
-            report_md.append("|---|---|---|---|")
+            report_md.append("| Span | Deepgram | Soniox |")
+            report_md.append("|---|---|---|")
             for d in disagreements:
                 v = d["variants"]
-                v_padded = v + [""] * (3 - len(v))
-                report_md.append(f"| FLAG_{d['span']} | {v_padded[0]} | {v_padded[1]} | {v_padded[2]} |")
+                v_padded = v + [""] * (2 - len(v))
+                report_md.append(f"| FLAG_{d['span']} | {v_padded[0]} | {v_padded[1]} |")
             report_md.append("\n")
             
     with open(report_path, "w") as f:

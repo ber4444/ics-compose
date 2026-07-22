@@ -37,34 +37,30 @@ def fetch_clip(entry: dict, dry_run: bool):
         print(f"Skipping {clip_id}, already exists.")
         return
 
-    url = get_stream_url(source["event"], source["rendition"])
-    start_s = source["start_s"]
-    dur_s = source["dur_s"]
+    event = source["event"]
+    rendition = source["rendition"]
+    start = source["start_s"]
+    dur = source["dur_s"]
+    out_path = output_path
 
-    print(f"Fetching {clip_id} from {url} (start={start_s}, dur={dur_s})")
+    print(f"Fetching {clip_id}...")
     
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-ss", str(start_s),
-        "-i", url,
-        "-t", str(dur_s),
-        "-ar", "16000",
-        "-ac", "1",
-        "-c:a", "pcm_s16le",
-        output_path
-    ]
-
+    url = f"https://65e54f30ec73c.streamlock.net:443/live/event{event}{rendition}/playlist.m3u8?DVR"
+    print(f"Executing: ffmpeg -ss {start} -i {url} -t {dur} -ar 16000 -ac 1 -c:a pcm_s16le {out_path}")
+    
     if dry_run:
-        print(f"[DRY-RUN] Would execute: {' '.join(cmd)}")
+        print(f"[DRY-RUN] Would execute: ffmpeg -ss {start} -i {url} -t {dur} -ar 16000 -ac 1 -c:a pcm_s16le {out_path}")
     else:
-        # We need to make sure CLIPS_DIR exists
         os.makedirs(config.CLIPS_DIR, exist_ok=True)
         try:
-            subprocess.run(cmd, check=True)
-            print(f"Successfully fetched {clip_id}")
+            cmd = [
+                "ffmpeg", "-y", "-ss", str(start), "-i", url, "-t", str(dur),
+                "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", out_path
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+            print(f"Successfully downloaded {clip_id}")
         except subprocess.CalledProcessError as e:
-            print(f"Failed to fetch {clip_id}: {e}")
+            print(f"Failed to fetch {clip_id}: {e.stderr.decode()}")
 
 def main():
     parser = argparse.ArgumentParser()

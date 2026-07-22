@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
-from providers import DeepgramProvider, AssemblyAIProvider, SonioxProvider
+from providers import DeepgramProvider, SonioxProvider
 
 def ensure_fixture_dir(provider_name: str, boost: bool):
     name = f"{provider_name}-boost" if boost else provider_name
@@ -26,7 +26,6 @@ def main():
         
     providers = {
         "deepgram": DeepgramProvider(),
-        "assemblyai": AssemblyAIProvider(),
         "soniox": SonioxProvider()
     }
     
