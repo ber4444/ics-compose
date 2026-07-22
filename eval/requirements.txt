@@ -1,0 +1,6 @@
+jiwer
+whisper-normalizer
+websockets
+httpx
+pytest
+pydantic

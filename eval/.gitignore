@@ -1,0 +1,8 @@
+golden/clips/
+golden/refs/
+golden/align/
+fixtures/
+reports/
+venv/
+__pycache__/
+.env

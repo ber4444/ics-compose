@@ -1,0 +1,319 @@
+{
+  "entries": [
+    {
+      "id": "evt8-clip-1",
+      "source": {
+        "event": "8",
+        "rendition": "_aac",
+        "start_s": 323,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["six syllables", "uncreated light"],
+      "ref": "refs/evt8-clip-1.txt",
+      "verified": true
+    },
+    {
+      "id": "evt8-clip-2",
+      "source": {
+        "event": "8",
+        "rendition": "_aac",
+        "start_s": 876,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["sed festival", "sequence", "30 work I's", "four wordless breaths"],
+      "ref": "refs/evt8-clip-2.txt",
+      "verified": true
+    },
+    {
+      "id": "evt8-clip-3",
+      "source": {
+        "event": "8",
+        "rendition": "_aac",
+        "start_s": 1429,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["first wordless breath", "short Be, middle Be, long Be"],
+      "ref": "refs/evt8-clip-3.txt",
+      "verified": true
+    },
+    {
+      "id": "evt8-clip-4",
+      "source": {
+        "event": "8",
+        "rendition": "_aac",
+        "start_s": 1982,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["divine faculty", "uncreated light", "conscious"],
+      "ref": "refs/evt8-clip-4.txt",
+      "verified": true
+    },
+    {
+      "id": "evt10-clip-1",
+      "source": {
+        "event": "10",
+        "rendition": "_aac",
+        "start_s": 229,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["celestial assembly", "Absolute"],
+      "ref": "refs/evt10-clip-1.txt",
+      "verified": true
+    },
+    {
+      "id": "evt10-clip-2",
+      "source": {
+        "event": "10",
+        "rendition": "_aac",
+        "start_s": 861,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["8th life", "first wordless breath"],
+      "ref": "refs/evt10-clip-2.txt",
+      "verified": true
+    },
+    {
+      "id": "evt10-clip-3",
+      "source": {
+        "event": "10",
+        "rendition": "_aac",
+        "start_s": 1493,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["8th life"],
+      "ref": "refs/evt10-clip-3.txt",
+      "verified": true
+    },
+    {
+      "id": "evt10-clip-4",
+      "source": {
+        "event": "10",
+        "rendition": "_aac",
+        "start_s": 2125,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["long Be", "four wordless breath", "uncreated light"],
+      "ref": "refs/evt10-clip-4.txt",
+      "verified": true
+    },
+    {
+      "id": "evt10-clip-5",
+      "source": {
+        "event": "10",
+        "rendition": "_aac",
+        "start_s": 2757,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["with presence"],
+      "ref": "refs/evt10-clip-5.txt",
+      "verified": true
+    },
+    {
+      "id": "evt11-clip-1",
+      "source": {
+        "event": "11",
+        "rendition": "_aac",
+        "start_s": 480,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt11-clip-1.txt",
+      "verified": true
+    },
+    {
+      "id": "evt11-clip-2",
+      "source": {
+        "event": "11",
+        "rendition": "_aac",
+        "start_s": 1246,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt11-clip-2.txt",
+      "verified": true
+    },
+    {
+      "id": "evt11-clip-3",
+      "source": {
+        "event": "11",
+        "rendition": "_aac",
+        "start_s": 2012,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt11-clip-3.txt",
+      "verified": true
+    },
+    {
+      "id": "evt11-clip-4",
+      "source": {
+        "event": "11",
+        "rendition": "_aac",
+        "start_s": 2778,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt11-clip-4.txt",
+      "verified": true
+    },
+    {
+      "id": "evt11-clip-5",
+      "source": {
+        "event": "11",
+        "rendition": "_aac",
+        "start_s": 3544,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt11-clip-5.txt",
+      "verified": true
+    },
+    {
+      "id": "evt13-clip-1",
+      "source": {
+        "event": "13",
+        "rendition": "_aac",
+        "start_s": 761,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt13-clip-1.txt",
+      "verified": true
+    },
+    {
+      "id": "evt13-clip-2",
+      "source": {
+        "event": "13",
+        "rendition": "_aac",
+        "start_s": 1578,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["higher emotional center", "uncreated light"],
+      "ref": "refs/evt13-clip-2.txt",
+      "verified": true
+    },
+    {
+      "id": "evt13-clip-3",
+      "source": {
+        "event": "13",
+        "rendition": "_aac",
+        "start_s": 2395,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt13-clip-3.txt",
+      "verified": true
+    },
+    {
+      "id": "evt13-clip-4",
+      "source": {
+        "event": "13",
+        "rendition": "_aac",
+        "start_s": 3212,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["unconscious machine", "mechanical"],
+      "ref": "refs/evt13-clip-4.txt",
+      "verified": true
+    },
+    {
+      "id": "evt13-clip-5",
+      "source": {
+        "event": "13",
+        "rendition": "_aac",
+        "start_s": 4029,
+        "dur_s": 60
+      },
+      "conditions": [
+        "clean"
+      ],
+      "domain_terms": ["higher centers"],
+      "ref": "refs/evt13-clip-5.txt",
+      "verified": true
+    },
+    {
+      "id": "evt15-clip-2",
+      "source": {
+        "event": "15",
+        "rendition": "_aac",
+        "start_s": 2232,
+        "dur_s": 60
+      },
+      "conditions": [
+        "music_bed"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt15-clip-2.txt",
+      "verified": true
+    },
+    {
+      "id": "evt15-clip-4",
+      "source": {
+        "event": "15",
+        "rendition": "_aac",
+        "start_s": 5616,
+        "dur_s": 60
+      },
+      "conditions": [
+        "music_bed"
+      ],
+      "domain_terms": [],
+      "ref": "refs/evt15-clip-4.txt",
+      "verified": true
+    }
+  ]
+}
