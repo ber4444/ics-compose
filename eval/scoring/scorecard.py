@@ -8,7 +8,16 @@ from collections import defaultdict
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
 from providers import TranscriptResult, StreamResult
-from scoring.metrics import calculate_and_dump_diff, calculate_streaming_metrics
+from scoring.metrics import calculate_and_dump_diff, calculate_streaming_metrics, calculate_translation_fidelity
+
+
+def _load_translation(kind, clip_id, target_lang):
+    """Replay a recorded DeepL translation, or None if not recorded."""
+    path = os.path.join(config.TRANSLATIONS_DIR, kind, f"{clip_id}.{target_lang}.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "r") as f:
+        return json.load(f).get("text", "")
 
 def generate_scorecard(allow_unverified: bool = False):
     with open(config.MANIFEST_PATH, 'r') as f:
@@ -23,6 +32,10 @@ def generate_scorecard(allow_unverified: bool = False):
 
     # Streaming (Phase 4) results
     stream_by_provider = defaultdict(list)  # provider -> [{clip_id, metrics}]
+
+    # Translation fidelity (ASR -> DeepL) results
+    target_lang = config.TRANSLATE_TARGET_LANG
+    translation_by_provider = defaultdict(list)  # provider -> [{clip_id, metrics}]
     
     for entry in manifest["entries"]:
         clip_id = entry["id"]
@@ -39,7 +52,9 @@ def generate_scorecard(allow_unverified: bool = False):
             
         with open(ref_path, "r") as f:
             ref_text = f.read()
-            
+
+        ref_translation = _load_translation("ref", clip_id, target_lang)
+
         for provider in providers:
             # Baseline
             fix_path = os.path.join(config.FIXTURES_DIR, provider, f"{clip_id}.json")
@@ -78,6 +93,12 @@ def generate_scorecard(allow_unverified: bool = False):
                     sr = StreamResult(**json.load(f))
                 stream_metrics = calculate_streaming_metrics(ref_text, sr)
                 stream_by_provider[provider].append({"clip_id": clip_id, "metrics": stream_metrics})
+
+            # Translation fidelity (ASR -> DeepL): translate(hyp) vs translate(ref)
+            hyp_translation = _load_translation(provider, clip_id, target_lang)
+            if ref_translation is not None and hyp_translation is not None:
+                fidelity = calculate_translation_fidelity(ref_translation, hyp_translation)
+                translation_by_provider[provider].append({"clip_id": clip_id, "metrics": fidelity})
 
     # Generate Markdown
     md = []
@@ -162,6 +183,29 @@ def generate_scorecard(allow_unverified: bool = False):
             lat_med = avg_metric(runs, "final_latency_med_s")
             lat_p95 = avg_metric(runs, "final_latency_p95_s")
             md.append(f"| {p} | {len(runs)} | {swer:.3f} | {flick:.3f} | {lat_med:.2f}s | {lat_p95:.2f}s |")
+        md.append("\n")
+
+    # Translation fidelity section (ASR -> DeepL)
+    if any(translation_by_provider.get(p) for p in providers):
+        md.append(f"## Translation Fidelity (ASR → DeepL, target = {target_lang})\n")
+        md.append("How much ASR error survives machine translation: each provider's transcript is "
+                  "translated with DeepL and compared to the translation of the **verified reference** "
+                  "(the ideal translation from perfect ASR). chrF is 0–100 (higher = closer to ideal); "
+                  "Post-MT WER is on raw target-language text, comparable to the source WER above.\n")
+        md.append("| Provider | Clips | chrF vs ideal | Post-MT WER | Source WER (Norm) |")
+        md.append("|---|---|---|---|---|")
+        for p in providers:
+            runs = translation_by_provider.get(p, [])
+            if not runs:
+                md.append(f"| {p} | 0 | n/a (not run) | n/a | - |")
+                continue
+            chrf = avg_metric(runs, "trans_chrf")
+            twer = avg_metric(runs, "trans_wer")
+            # source WER over the same clips that were translated
+            translated_ids = {r["clip_id"] for r in runs}
+            src_runs = [r for r in results_by_provider.get(p, []) if r["clip_id"] in translated_ids]
+            src_wer = avg_metric(src_runs, "wer_norm") if src_runs else 0.0
+            md.append(f"| {p} | {len(runs)} | {chrf:.1f} | {twer:.3f} | {src_wer:.3f} |")
         md.append("\n")
 
     md.append("## Worst 5 Clips by Provider (WER Norm)\n")

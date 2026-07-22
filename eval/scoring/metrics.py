@@ -154,3 +154,25 @@ def calculate_streaming_metrics(ref_text: str, stream) -> Dict[str, float]:
         "final_latency_p95_s": _percentile(lats, 95),
         "num_final_words": len(stream.final_words),
     }
+
+
+def calculate_translation_fidelity(ref_translation: str, hyp_translation: str) -> Dict[str, float]:
+    """How much ASR error survives machine translation.
+
+    Compares translate(hypothesis) against translate(verified reference) — the ideal
+    translation the user would have gotten from perfect ASR.
+    - trans_chrf: chrF (0-100, higher better); language-agnostic, morphology-aware,
+      the recommended MT metric. No ML model, deterministic.
+    - trans_wer / trans_cer: post-translation word/char error rate (raw target-language
+      text; the English Whisper normalizer is NOT applied), directly comparable to the
+      source-side WER so error amplification is visible.
+    """
+    import sacrebleu
+
+    if not ref_translation.strip():
+        return {"trans_chrf": 0.0, "trans_wer": 1.0, "trans_cer": 1.0}
+
+    chrf = sacrebleu.sentence_chrf(hyp_translation, [ref_translation]).score
+    trans_wer = jiwer.wer(ref_translation, hyp_translation if hyp_translation.strip() else "<empty>")
+    trans_cer = jiwer.cer(ref_translation, hyp_translation)
+    return {"trans_chrf": chrf, "trans_wer": trans_wer, "trans_cer": trans_cer}

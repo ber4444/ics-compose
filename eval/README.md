@@ -31,6 +31,7 @@ Everything except the two spending scripts runs offline from `fixtures/` and cos
 | Bootstrap refs | `python scripts/bootstrap_refs.py` | free | 2-of-3 consensus draft refs + disagreement report (human verifies) |
 | Record **batch** | `python scripts/record.py` | 💲 live | writes `fixtures/{provider}[-boost]/` |
 | Record **streaming** | `python scripts/record_stream.py [--max-clips N]` | 💲 live | real-time paced websocket sessions → `fixtures/{provider}-stream/` |
+| Translate | `python scripts/translate.py [--target DE]` | 💲 live | DeepL-translates each hypothesis + the reference → `fixtures/translations/`; needs `DEEPL_API_KEY` |
 | Score | `python scoring/scorecard.py` | free | regenerates `reports/scorecard.md` from fixtures |
 
 `./run_eval.sh` chains the free steps + batch record + score, skipping work whose
@@ -53,6 +54,15 @@ fixtures already exist.
 - **Finalization latency (med / p95)** — per word, wall-clock time from spoken to
   finalized. Measured against each provider's **self-reported** word timestamps;
   forced-alignment ground truth (plan Phase 5) is intentionally **not wired yet**.
+
+**Translation fidelity (ASR → DeepL)**
+- Each provider's transcript is translated with DeepL and compared to the translation
+  of the **verified reference** (the ideal translation from perfect ASR). This measures
+  how much ASR error actually survives machine translation for a given clip.
+- **chrF vs ideal** — sacrebleu chrF (0–100, higher = closer to the ideal translation);
+  language-agnostic and morphology-aware, no ML model.
+- **Post-MT WER** — word error rate on the raw target-language text, directly
+  comparable to the source-side WER so error amplification is visible.
 
 ## Record/replay & cost
 

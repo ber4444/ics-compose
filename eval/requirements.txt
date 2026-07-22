@@ -4,3 +4,4 @@ websockets
 httpx
 pytest
 pydantic
+sacrebleu
